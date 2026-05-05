@@ -694,9 +694,11 @@
   supabaseClient.auth.onAuthStateChange(async (event, session) => {
     console.log('Auth state changed:', event, session?.user?.email);
     currentUser = session?.user || null;
+    console.log('currentUser set to:', currentUser);
     
     // Handle new sign-ins (especially Google OAuth users)
     if (event === 'SIGNED_IN' && session?.user) {
+      console.log('SIGNED_IN event - checking profile...');
       // Check if user has a profile
       const { data: profile, error: profileError } = await supabaseClient
         .from('profiles')
@@ -704,17 +706,20 @@
         .eq('id', session.user.id)
         .maybeSingle();
       
+      console.log('Profile check result:', { profile, profileError });
+      
       if (profileError) {
         console.error('Profile check error:', profileError);
       }
       
       // If no profile or no username, create default
       if (!profile?.username) {
+        console.log('No profile found, creating one...');
         const defaultUsername = session.user.email?.split('@')[0] || 'user';
         const timestamp = Date.now().toString().slice(-4);
         const username = `${defaultUsername}_${timestamp}`;
         
-        await supabaseClient
+        const { error: upsertError } = await supabaseClient
           .from('profiles')
           .upsert({
             id: session.user.id,
@@ -722,19 +727,33 @@
             updated_at: new Date().toISOString()
           });
         
-        // Update user metadata
-        await supabaseClient.auth.updateUser({
+        if (upsertError) {
+          console.error('Profile upsert error:', upsertError);
+        }
+        
+        const { error: updateError } = await supabaseClient.auth.updateUser({
           data: { username: username }
         });
+        
+        if (updateError) {
+          console.error('User metadata update error:', updateError);
+        }
       }
       
-      toast(`Welcome, ${session.user.email}!`);
+      toast('Welcome back!');
       hideAccountModal();
+      console.log('Calling updateAuthUI after SIGNED_IN...');
+      await updateAuthUI();
+      console.log('updateAuthUI completed after SIGNED_IN');
     } else if (event === 'SIGNED_OUT') {
       toast('Signed out');
+      console.log('Calling updateAuthUI after SIGNED_OUT...');
+      await updateAuthUI();
+    } else {
+      // For all other events, still update UI
+      console.log('Calling updateAuthUI for event:', event);
+      await updateAuthUI();
     }
-    
-    await updateAuthUI();
   });
   
   // Initialize on page load

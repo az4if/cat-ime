@@ -117,14 +117,8 @@
       if (error) {
         toast(error.message);
       } else {
+        // onAuthStateChange will handle updating UI and showing toast
         currentUser = data.user;
-        console.log('Sign in successful, checking localStorage...');
-        const { data: { session } } = await supabaseClient.auth.getSession();
-        console.log('Session after sign in:', session);
-        console.log('localStorage keys:', Object.keys(localStorage).filter(k => k.includes('supabase')));
-        toast('Welcome back!');
-        hideAccountModal();
-        await updateAuthUI();
       }
     } catch (err) {
       console.error('Sign in error:', err);
@@ -441,32 +435,43 @@
     const currentPassword = document.getElementById('currentPassword').value;
     const newPassword = document.getElementById('newPassword').value;
     const confirmPassword = document.getElementById('confirmPassword').value;
-    
+
     if (!currentPassword || !newPassword || !confirmPassword) {
       toast('Please fill in all password fields');
       return;
     }
-    
+
     if (newPassword.length < 6) {
       toast('New password must be at least 6 characters');
       return;
     }
-    
+
     if (newPassword !== confirmPassword) {
       toast('Passwords do not match');
       return;
     }
-    
+
     try {
+      // Verify current password by re-authenticating
+      const { error: verifyError } = await supabaseClient.auth.signInWithPassword({
+        email: currentUser.email,
+        password: currentPassword
+      });
+
+      if (verifyError) {
+        toast('Current password is incorrect');
+        return;
+      }
+
+      // Now update to new password
       const { data, error } = await supabaseClient.auth.updateUser({
         password: newPassword
       });
-      
+
       if (error) {
         toast(error.message);
       } else {
         toast('Password changed successfully!');
-        // Clear password fields
         document.getElementById('currentPassword').value = '';
         document.getElementById('newPassword').value = '';
         document.getElementById('confirmPassword').value = '';
@@ -531,31 +536,51 @@
     if (!confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
       return;
     }
-    
+
     const confirmation = prompt('Type "DELETE" to confirm account deletion:');
     if (confirmation !== 'DELETE') {
       toast('Account deletion cancelled');
       return;
     }
-    
+
     try {
-      // Delete user's profile data first
+      // Delete profile data
       const { error: profileError } = await supabaseClient
         .from('profiles')
         .delete()
         .eq('id', currentUser.id);
-      
+
       if (profileError) {
         console.error('Profile deletion error:', profileError);
       }
-      
-      // Note: User account deletion requires admin privileges
-      // This must be done via a serverless function or manually in Supabase Dashboard
-      // For now, we just clear the session client-side
-      await supabaseClient.auth.signOut();
-      currentUser = null;
-      localStorage.clear();
-      toast('Account data cleared. Please contact admin for complete deletion.');
+
+      // Delete avatar from storage
+      const { data: avatarFiles } = await supabaseClient
+        .storage
+        .from('avatars')
+        .list(currentUser.id);
+
+      if (avatarFiles && avatarFiles.length > 0) {
+        const filePaths = avatarFiles.map(f => `${currentUser.id}/${f.name}`);
+        await supabaseClient.storage.from('avatars').remove(filePaths);
+      }
+
+      // Try to delete via RPC (requires a delete_user function in Supabase)
+      const { error: rpcError } = await supabaseClient.rpc('delete_user');
+
+      if (rpcError) {
+        console.error('RPC delete error:', rpcError);
+        // Fall back to sign out if RPC not set up
+        await supabaseClient.auth.signOut();
+        currentUser = null;
+        localStorage.clear();
+        toast('Account data cleared. Full deletion requires admin action.');
+      } else {
+        currentUser = null;
+        localStorage.clear();
+        toast('Account deleted successfully.');
+      }
+
       await updateAuthUI();
       hideAccountSettings();
     } catch (err) {
@@ -567,204 +592,156 @@
   window.updateAuthUI = async function() {
     const authButtons = document.getElementById('authButtons');
     const userInfo = document.getElementById('userInfo');
-    
-    console.log('updateAuthUI called, currentUser:', currentUser);
-    console.log('DOM elements:', { authButtons, userInfo });
-    
+
     if (!authButtons || !userInfo) {
-      console.error('Auth UI elements not found in DOM');
+      // DOM not ready yet — defer until DOMContentLoaded
       return;
     }
-    
+
     if (currentUser) {
-      // Hide auth buttons, show user info
       authButtons.classList.add('hidden');
       userInfo.classList.remove('hidden');
-      
+
       try {
-        // Fetch profile data to get avatar - use maybeSingle to avoid error if no profile
         const { data: profile, error: profileError } = await supabaseClient
           .from('profiles')
           .select('username, avatar_url')
           .eq('id', currentUser.id)
           .maybeSingle();
-        
+
         if (profileError) {
           console.error('Profile fetch error:', profileError);
         }
-        
+
         const username = profile?.username || currentUser.user_metadata?.username || currentUser.email?.split('@')[0] || 'User';
         const avatarUrl = profile?.avatar_url;
         const initial = username.charAt(0).toUpperCase();
-        
+
         document.getElementById('userName').textContent = username;
-        
-        // Update avatar display
+
+        // Update avatar display safely (no innerHTML with user data)
         const userAvatar = document.getElementById('userAvatar');
+        userAvatar.textContent = '';
         if (avatarUrl) {
-          userAvatar.innerHTML = `<img src="${avatarUrl}" alt="${username}" style="width: 100%; height: 100%; object-fit: cover;">`;
+          const img = document.createElement('img');
+          img.src = avatarUrl;
+          img.alt = username;
+          img.style.cssText = 'width: 100%; height: 100%; object-fit: cover; border-radius: inherit;';
+          userAvatar.appendChild(img);
         } else {
-          userAvatar.innerHTML = `<span id="userInitial">${initial}</span>`;
+          const span = document.createElement('span');
+          span.id = 'userInitial';
+          span.textContent = initial;
+          userAvatar.appendChild(span);
         }
       } catch (err) {
         console.error('Error updating auth UI:', err);
-        // Still show user info even if profile fetch fails
         document.getElementById('userName').textContent = currentUser.email?.split('@')[0] || 'User';
-        document.getElementById('userAvatar').innerHTML = '<span id="userInitial">?</span>';
+        const userAvatar = document.getElementById('userAvatar');
+        userAvatar.textContent = '';
+        const span = document.createElement('span');
+        span.id = 'userInitial';
+        span.textContent = '?';
+        userAvatar.appendChild(span);
       }
     } else {
-      console.log('No currentUser, showing auth buttons');
       authButtons.classList.remove('hidden');
       userInfo.classList.add('hidden');
     }
   };
   
-  // Check for existing session on load
+  // Show account prompt for new visitors (session is already handled by onAuthStateChange)
   async function checkAuthState() {
-    console.log('checkAuthState - getting session...');
-    const { data, error } = await supabaseClient.auth.getSession();
-    console.log('checkAuthState - full data:', data);
-    console.log('checkAuthState - error:', error);
-    const session = data?.session;
-    console.log('checkAuthState - session:', session);
-    console.log('checkAuthState - localStorage keys:', Object.keys(localStorage));
-    currentUser = session?.user || null;
-    
-    // Only show account prompt if user is NOT logged in and hasn't seen it
     if (!currentUser && !hasSeenAccountPrompt) {
       setTimeout(() => showAccountModal(), 2000);
     }
   }
   
-  // Handle Google OAuth callback
+  // Handle Google OAuth callback - just clean up URL params
+  // Profile creation is handled by onAuthStateChange SIGNED_IN event
   async function handleAuthCallback() {
     const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get('code');
     const error = urlParams.get('error');
-    
+
     if (error) {
       toast('Authentication failed: ' + error);
       window.history.replaceState({}, document.title, window.location.pathname);
       return;
     }
-    
-    if (code) {
+
+    // Clean up OAuth code/params from URL
+    if (urlParams.has('code') || urlParams.has('access_token')) {
       window.history.replaceState({}, document.title, window.location.pathname);
-      const { data: { session } } = await supabaseClient.auth.getSession();
-      if (session?.user) {
-        currentUser = session.user;
-        
-        // Ensure Google OAuth users have a profile
-        const { data: profile, error: profileError } = await supabaseClient
-          .from('profiles')
-          .select('username')
-          .eq('id', session.user.id)
-          .maybeSingle();
-        
-        if (profileError) {
-          console.error('Profile check error:', profileError);
-        }
-        
-        if (!profile?.username) {
-          const defaultUsername = session.user.email?.split('@')[0] || 'user';
-          const timestamp = Date.now().toString().slice(-4);
-          const username = `${defaultUsername}_${timestamp}`;
-          
-          await supabaseClient
-            .from('profiles')
-            .upsert({
-              id: session.user.id,
-              username: username,
-              updated_at: new Date().toISOString()
-            });
-          
-          await supabaseClient.auth.updateUser({
-            data: { username: username }
-          });
-        }
-        
-        toast('Welcome back!');
-        hideAccountModal();
-        await updateAuthUI();
-      }
     }
   }
   
   // Listen for auth changes
+  let authInitialized = false;
+
   supabaseClient.auth.onAuthStateChange(async (event, session) => {
     console.log('Auth state changed:', event, session?.user?.email);
     currentUser = session?.user || null;
-    console.log('currentUser set to:', currentUser);
-    
-    // Handle new sign-ins (especially Google OAuth users)
+
+    // Skip toasts for the initial session restore on page load
+    if (event === 'INITIAL_SESSION') {
+      authInitialized = true;
+      await updateAuthUI();
+      return;
+    }
+
     if (event === 'SIGNED_IN' && session?.user) {
-      console.log('SIGNED_IN event - checking profile...');
-      // Check if user has a profile
+      // Ensure user has a profile (for OAuth users)
       const { data: profile, error: profileError } = await supabaseClient
         .from('profiles')
         .select('username')
         .eq('id', session.user.id)
         .maybeSingle();
-      
-      console.log('Profile check result:', { profile, profileError });
-      
+
       if (profileError) {
         console.error('Profile check error:', profileError);
       }
-      
-      // If no profile or no username, create default
+
       if (!profile?.username) {
-        console.log('No profile found, creating one...');
         const defaultUsername = session.user.email?.split('@')[0] || 'user';
         const timestamp = Date.now().toString().slice(-4);
         const username = `${defaultUsername}_${timestamp}`;
-        
-        const { error: upsertError } = await supabaseClient
+
+        await supabaseClient
           .from('profiles')
           .upsert({
             id: session.user.id,
             username: username,
             updated_at: new Date().toISOString()
           });
-        
-        if (upsertError) {
-          console.error('Profile upsert error:', upsertError);
-        }
-        
-        const { error: updateError } = await supabaseClient.auth.updateUser({
+
+        await supabaseClient.auth.updateUser({
           data: { username: username }
         });
-        
-        if (updateError) {
-          console.error('User metadata update error:', updateError);
-        }
       }
-      
-      toast('Welcome back!');
+
+      // Only show toast for actual sign-in actions, not page refreshes
+      if (authInitialized) {
+        toast('Welcome back!');
+      }
       hideAccountModal();
-      console.log('Calling updateAuthUI after SIGNED_IN...');
       await updateAuthUI();
-      console.log('updateAuthUI completed after SIGNED_IN');
     } else if (event === 'SIGNED_OUT') {
       toast('Signed out');
-      console.log('Calling updateAuthUI after SIGNED_OUT...');
       await updateAuthUI();
     } else {
-      // For all other events, still update UI
-      console.log('Calling updateAuthUI for event:', event);
       await updateAuthUI();
     }
   });
   
   // Initialize on page load
   document.addEventListener('DOMContentLoaded', async () => {
-    console.log('DOMContentLoaded - starting auth initialization');
     await handleAuthCallback();
-    console.log('After handleAuthCallback, currentUser:', currentUser);
-    await checkAuthState();
-    console.log('After checkAuthState, currentUser:', currentUser);
+    // Ensure UI is up to date once DOM is ready (in case onAuthStateChange fired early)
     await updateAuthUI();
-    console.log('After updateAuthUI');
+    // Mark as initialized so future auth events show toasts
+    authInitialized = true;
+    // Show account prompt for new visitors after a short delay
+    setTimeout(() => checkAuthState(), 1500);
   });
 </script>
 <style>

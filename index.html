@@ -22,7 +22,6 @@
   // Initialize Supabase
   let supabaseClient;
   try {
-    console.log('Supabase config:', window.supabaseConfig);
     if (!window.supabaseConfig || !window.supabaseConfig.url || !window.supabaseConfig.anonKey) {
       throw new Error('Supabase config not loaded. Check supabase-config.js exists and is loaded correctly.');
     }

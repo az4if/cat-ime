@@ -315,11 +315,13 @@
       console.log('Update user response:', { userData, userError });
       
       if (userError) {
+        console.error('Auth update error:', userError);
         toast(userError.message);
         return;
       }
       
       // Update profiles table
+      console.log('Updating profiles table for user:', currentUser.id);
       const { data: profileData, error: profileError } = await supabaseClient
         .from('profiles')
         .upsert({
@@ -333,6 +335,8 @@
       
       if (profileError) {
         console.error('Profile table update error:', profileError);
+        console.error('Make sure the "profiles" table exists with columns: id, username, bio, updated_at');
+        console.error('Also verify RLS policies allow INSERT/UPDATE for authenticated users');
         toast('Error saving to profile table: ' + profileError.message);
         return;
       }
@@ -389,7 +393,8 @@
       
       if (uploadError) {
         console.error('Upload error:', uploadError);
-        toast('Upload failed: ' + uploadError.message);
+        console.error('Make sure the "avatars" storage bucket exists in Supabase with public access');
+        toast('Error uploading image: ' + uploadError.message);
         return;
       }
       
@@ -414,6 +419,8 @@
       
       if (updateError) {
         console.error('Profile update error:', updateError);
+        console.error('Make sure the "profiles" table exists with columns: id, avatar_url, updated_at');
+        console.error('Also verify RLS policies allow INSERT/UPDATE for authenticated users');
         toast('Error saving avatar URL: ' + updateError.message);
         return;
       }
@@ -474,6 +481,8 @@
       });
 
       if (error) {
+        console.error('Password update error:', error);
+        console.error('Make sure the "auth" table exists in Supabase with RLS policies allowing UPDATE');
         toast(error.message);
       } else {
         toast('Password changed successfully!');
@@ -526,6 +535,8 @@
       });
       
       if (error) {
+        console.error('Sync error:', error);
+        console.error('Make sure the "auth" table exists in Supabase with RLS policies allowing UPDATE');
         toast(error.message);
       } else {
         toast('Settings synced successfully!');
@@ -557,6 +568,7 @@
 
       if (profileError) {
         console.error('Profile deletion error:', profileError);
+        console.error('Make sure the "profiles" table exists with RLS policies allowing DELETE');
       }
 
       // Delete avatar from storage
@@ -575,6 +587,7 @@
 
       if (rpcError) {
         console.error('RPC delete error:', rpcError);
+        console.error('Make sure the "delete_user" RPC function exists in Supabase');
         // Fall back to sign out if RPC not set up
         await supabaseClient.auth.signOut();
         currentUser = null;
@@ -616,6 +629,7 @@
 
         if (profileError) {
           console.error('Profile fetch error:', profileError);
+          console.error('Make sure the "profiles" table exists in Supabase with RLS policies allowing SELECT');
         }
 
         const username = profile?.username || currentUser.user_metadata?.username || currentUser.email?.split('@')[0] || 'User';
@@ -686,6 +700,13 @@
   supabaseClient.auth.onAuthStateChange(async (event, session) => {
     console.log('Auth state changed:', event, session?.user?.email);
     currentUser = session?.user || null;
+    
+    // Persist session info for debugging
+    if (session) {
+      console.log('Session valid, expires at:', new Date(session.expires_at * 1000).toLocaleString());
+    } else {
+      console.log('No session - user is signed out');
+    }
 
     // Skip toasts for the initial session restore on page load
     if (event === 'INITIAL_SESSION') {
@@ -4617,6 +4638,7 @@
             hasNextPage: Boolean(data.data.Page.pageInfo && data.data.Page.pageInfo.hasNextPage)
           };
         } catch (e) {
+          console.error('AniList API error:', e);
           return { items: [], hasNextPage: false };
         }
       }

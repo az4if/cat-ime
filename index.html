@@ -54,15 +54,15 @@
   }
 
   function getCurrentUsername(profile) {
-    return currentUser?.user_metadata?.username || profile?.username || getCachedProfile(currentUser?.id)?.username || currentUser?.email?.split('@')[0] || 'User';
+    return profile?.username || getCachedProfile(currentUser?.id)?.username || currentUser?.user_metadata?.username || currentUser?.email?.split('@')[0] || 'User';
   }
 
   function getCurrentAvatarUrl(profile) {
-    return currentUser?.user_metadata?.avatar_url || profile?.avatar_url || getCachedProfile(currentUser?.id)?.avatar_url || '';
+    return profile?.avatar_url || getCachedProfile(currentUser?.id)?.avatar_url || currentUser?.user_metadata?.avatar_url || '';
   }
 
   function getCurrentBio(profile) {
-    return currentUser?.user_metadata?.bio || profile?.bio || getCachedProfile(currentUser?.id)?.bio || '';
+    return profile?.bio || getCachedProfile(currentUser?.id)?.bio || currentUser?.user_metadata?.bio || '';
   }
 
   function getProfileCacheKey(userId) {
@@ -84,17 +84,78 @@
     }));
   }
 
+  function syncUserMetadata(metadata) {
+    if (!currentUser) return;
+    currentUser = {
+      ...currentUser,
+      user_metadata: {
+        ...currentUser.user_metadata,
+        ...metadata
+      }
+    };
+  }
+
+  function setAccountStatus(message, type = 'info') {
+    const status = document.getElementById('accountStatus');
+    if (!status) return;
+
+    status.textContent = message || '';
+    status.className = `account-status ${type}`;
+    status.style.display = message ? 'block' : 'none';
+  }
+
+  function getSupabaseMessage(error) {
+    return error?.message || error?.error_description || error?.details || 'Unknown Supabase error';
+  }
+
+  function withTimeout(promise, label, timeoutMs = 10000) {
+    let timeoutId;
+    const timeout = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs / 1000}s`)), timeoutMs);
+    });
+
+    return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId));
+  }
+
+  function updateUserMetadataInBackground(metadata, label) {
+    if (!currentUser) return;
+
+    const nextMetadata = {
+      ...currentUser.user_metadata,
+      ...metadata
+    };
+
+    syncUserMetadata(nextMetadata);
+
+    withTimeout(
+      supabaseClient.auth.updateUser({ data: nextMetadata }),
+      label,
+      8000
+    ).then(({ data, error }) => {
+      if (error) {
+        console.warn(`${label} failed:`, error);
+        return;
+      }
+      if (data?.user) currentUser = data.user;
+    }).catch(err => {
+      console.warn(`${label} failed:`, err);
+    });
+  }
+
   async function fetchProfile() {
     if (!currentUser) return null;
 
     const cached = getCachedProfile(currentUser.id);
 
     try {
-      const { data: profile, error } = await supabaseClient
-        .from('profiles')
-        .select('*')
-        .eq('id', currentUser.id)
-        .maybeSingle();
+      const { data: profile, error } = await withTimeout(
+        supabaseClient
+          .from('profiles')
+          .select('*')
+          .eq('id', currentUser.id)
+          .maybeSingle(),
+        'Profile fetch'
+      );
 
       if (error) {
         console.error('Profile fetch error:', error);
@@ -208,6 +269,7 @@
       img.referrerPolicy = 'no-referrer';
       img.style.cssText = 'width: 100%; height: 100%; object-fit: cover; border-radius: inherit;';
       img.onerror = () => {
+        console.error('Navbar avatar failed to load:', avatarUrl);
         container.textContent = '';
         const span = document.createElement('span');
         span.id = 'userInitial';
@@ -310,6 +372,7 @@
         toast(error.message);
       } else {
         currentUser = data.user;
+        localStorage.setItem('lastSignedInUserId', currentUser.id);
         restoreSyncedAppDataIfEmpty();
         hideAccountModal();
         await updateAuthUI();
@@ -405,6 +468,7 @@
     const modal = document.getElementById('accountSettingsModal');
     if (modal) {
       modal.style.display = 'flex';
+      setAccountStatus('', 'info');
       
       // Populate user data
       if (currentUser) {
@@ -452,6 +516,7 @@
     console.log('saveProfileSettings called');
     
     if (!currentUser) {
+      setAccountStatus('You must be signed in to save profile.', 'error');
       toast('You must be signed in to save profile');
       return;
     }
@@ -462,6 +527,7 @@
     console.log('Form elements:', { usernameInput, bioInput });
     
     if (!usernameInput) {
+      setAccountStatus('Form error: username field not found.', 'error');
       toast('Form error: username field not found');
       return;
     }
@@ -472,57 +538,39 @@
     console.log('Form values:', { username, bio });
     
     if (!username) {
+      setAccountStatus('Username is required.', 'error');
       toast('Username is required');
       return;
     }
     
     if (username.length < 3) {
+      setAccountStatus('Username must be at least 3 characters.', 'error');
       toast('Username must be at least 3 characters');
       return;
     }
     
     try {
+      setAccountStatus('Saving profile...', 'info');
       toast('Saving profile...');
       const settingsAvatarImg = document.getElementById('settingsAvatarImg');
       const existingAvatarUrl = currentUser.user_metadata?.avatar_url || (settingsAvatarImg?.style.display !== 'none' ? settingsAvatarImg.src : '');
-      
-      // Update user metadata
-      const { data: userData, error: userError } = await supabaseClient.auth.updateUser({
-        data: {
-          ...currentUser.user_metadata,
-          username: username,
-          bio: bio,
-          avatar_url: existingAvatarUrl || currentUser.user_metadata?.avatar_url || ''
-        }
-      });
-      
-      console.log('Update user response:', { userData, userError });
-      
-      if (userError) {
-        console.error('Auth update error:', userError);
-        toast(userError.message);
-        return;
-      }
-      
-      currentUser = userData.user;
-      cacheProfile({
-        id: currentUser.id,
-        username,
-        bio,
-        avatar_url: existingAvatarUrl || ''
-      });
 
       // Update profiles table
       console.log('Updating profiles table for user:', currentUser.id);
-      const { data: profileData, error: profileError } = await supabaseClient
-        .from('profiles')
-        .upsert({
-          id: currentUser.id,
-          username: username,
-          bio: bio,
-          avatar_url: existingAvatarUrl || null,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'id' });
+      const { data: profileData, error: profileError } = await withTimeout(
+        supabaseClient
+          .from('profiles')
+          .upsert({
+            id: currentUser.id,
+            username: username,
+            bio: bio,
+            avatar_url: existingAvatarUrl || null,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'id' })
+          .select()
+          .single(),
+        'Profile save'
+      );
       
       console.log('Profile upsert response:', { profileData, profileError });
       
@@ -530,40 +578,60 @@
         console.error('Profile table update error:', profileError);
         console.error('Make sure the "profiles" table exists with columns: id, username, bio, updated_at');
         console.error('Also verify RLS policies allow INSERT/UPDATE for authenticated users');
-        toast('Profile saved, but public profile sync failed: ' + profileError.message);
-      } else {
-        toast('Profile updated!');
+        const message = getSupabaseMessage(profileError);
+        setAccountStatus('Profile save failed: ' + message, 'error');
+        toast('Profile save failed: ' + message);
+        return;
       }
-      
-      await updateAuthUI();
+
+      cacheProfile(profileData || {
+        id: currentUser.id,
+        username,
+        bio,
+        avatar_url: existingAvatarUrl || ''
+      });
+      syncUserMetadata({ username, bio, avatar_url: existingAvatarUrl || '' });
+      await updateAuthUI(profileData || getCachedProfile(currentUser.id));
+      setAccountStatus('Profile saved.', 'success');
+      toast('Profile updated!');
+
+      updateUserMetadataInBackground(
+        { username, bio, avatar_url: existingAvatarUrl || '' },
+        'Profile metadata sync'
+      );
     } catch (err) {
       console.error('Profile update error:', err);
+      setAccountStatus('Profile save failed: ' + err.message, 'error');
       toast('An error occurred updating profile: ' + err.message);
     }
   };
   
   window.uploadAvatar = async function(input) {
-    if (!input.files || !input.files[0]) return;
+      if (!input.files || !input.files[0]) return;
     
     const file = input.files[0];
     console.log('Uploading file:', file.name, file.type, file.size);
     
     // Validate file type
     if (!file.type.startsWith('image/')) {
+      setAccountStatus('Please select an image file.', 'error');
       toast('Please select an image file');
       return;
     }
     
     // Validate file size (max 2MB)
     if (file.size > 2 * 1024 * 1024) {
+      setAccountStatus('Image must be less than 2MB.', 'error');
       toast('Image must be less than 2MB');
       return;
     }
     
     try {
+      setAccountStatus('Uploading avatar...', 'info');
       toast('Uploading avatar...');
       
       if (!currentUser) {
+        setAccountStatus('You must be signed in to upload an avatar.', 'error');
         toast('You must be signed in to upload an avatar');
         return;
       }
@@ -573,20 +641,26 @@
       const filePath = `${currentUser.id}/avatar.${fileExt}`;
       console.log('Uploading to path:', filePath);
       
-      const { data: uploadData, error: uploadError } = await supabaseClient
-        .storage
-        .from('avatars')
-        .upload(filePath, file, {
-          upsert: true,
-          contentType: file.type
-        });
+      const { data: uploadData, error: uploadError } = await withTimeout(
+        supabaseClient
+          .storage
+          .from('avatars')
+          .upload(filePath, file, {
+            upsert: true,
+            contentType: file.type
+          }),
+        'Avatar upload',
+        20000
+      );
       
       console.log('Upload response:', { uploadData, uploadError });
       
       if (uploadError) {
         console.error('Upload error:', uploadError);
         console.error('Make sure the "avatars" storage bucket exists in Supabase with public access');
-        toast('Error uploading image: ' + uploadError.message);
+        const message = getSupabaseMessage(uploadError);
+        setAccountStatus('Avatar upload failed: ' + message, 'error');
+        toast('Error uploading image: ' + message);
         return;
       }
       
@@ -599,39 +673,23 @@
       const avatarUrl = `${publicUrl}?v=${Date.now()}`;
       console.log('Public URL:', avatarUrl);
 
-      const { data: userData, error: userError } = await supabaseClient.auth.updateUser({
-        data: {
-          ...currentUser.user_metadata,
-          avatar_url: avatarUrl
-        }
-      });
-
-      if (userError) {
-        console.error('Auth avatar metadata update error:', userError);
-        toast('Error saving avatar metadata: ' + userError.message);
-        return;
-      }
-
-      currentUser = userData.user;
-      cacheProfile({
-        id: currentUser.id,
-        username: currentUser.user_metadata?.username || currentUser.email?.split('@')[0] || 'User',
-        bio: currentUser.user_metadata?.bio || '',
-        avatar_url: avatarUrl
-      });
-      
       // Update profiles table with avatar URL
       const username = currentUser.user_metadata?.username || currentUser.email?.split('@')[0] || 'User';
       const bio = currentUser.user_metadata?.bio || '';
-      const { data: updateData, error: updateError } = await supabaseClient
-        .from('profiles')
-        .upsert({
-          id: currentUser.id,
-          username,
-          bio,
-          avatar_url: avatarUrl,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'id' });
+      const { data: updateData, error: updateError } = await withTimeout(
+        supabaseClient
+          .from('profiles')
+          .upsert({
+            id: currentUser.id,
+            username,
+            bio,
+            avatar_url: avatarUrl,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'id' })
+          .select()
+          .single(),
+        'Avatar profile save'
+      );
       
       console.log('Profile update:', { updateData, updateError });
       
@@ -639,10 +697,19 @@
         console.error('Profile update error:', updateError);
         console.error('Make sure the "profiles" table exists with columns: id, avatar_url, updated_at');
         console.error('Also verify RLS policies allow INSERT/UPDATE for authenticated users');
-        toast('Avatar saved, but public profile sync failed: ' + updateError.message);
-      } else {
-        toast('Avatar updated!');
+        const message = getSupabaseMessage(updateError);
+        setAccountStatus('Avatar URL save failed: ' + message, 'error');
+        toast('Avatar URL save failed: ' + message);
+        return;
       }
+
+      cacheProfile(updateData || {
+        id: currentUser.id,
+        username,
+        bio,
+        avatar_url: avatarUrl
+      });
+      syncUserMetadata({ username, bio, avatar_url: avatarUrl });
       
       // Update UI
       const avatarImg = document.getElementById('settingsAvatarImg');
@@ -655,10 +722,18 @@
       }
       
       // Also update nav bar avatar
-      await updateAuthUI();
+      await updateAuthUI(updateData || getCachedProfile(currentUser.id));
+      setAccountStatus('Avatar updated.', 'success');
+      toast('Avatar updated!');
+
+      updateUserMetadataInBackground(
+        { username, bio, avatar_url: avatarUrl },
+        'Avatar metadata sync'
+      );
       
     } catch (err) {
       console.error('Avatar upload error:', err);
+      setAccountStatus('Avatar upload failed: ' + err.message, 'error');
       toast('An error occurred uploading avatar: ' + err.message);
     }
   };
@@ -719,38 +794,47 @@
   window.syncSettings = async function() {
     // This will sync localStorage data to Supabase
     if (!currentUser) {
+      setAccountStatus('You must be signed in to sync settings.', 'error');
       toast('You must be signed in to sync settings');
       return;
     }
     
     try {
+      setAccountStatus('Syncing settings...', 'info');
       const userData = collectAppDataForSync();
       
       // Check data size before sending
       const dataSize = JSON.stringify(userData).length;
       if (dataSize > 14000) {
+        setAccountStatus('Sync data is too large. Export a backup or clear some watch progress.', 'error');
         toast('Data too large to sync. Export a backup or clear some watch progress.');
         return;
       }
-      
-      // Store in user metadata (for now - ideally use a separate table)
-      const { data, error } = await supabaseClient.auth.updateUser({
-        data: {
-          ...currentUser.user_metadata,
-          appData: userData
-        }
-      });
+
+      const { data, error } = await withTimeout(
+        supabaseClient.auth.updateUser({
+          data: {
+            ...currentUser.user_metadata,
+            appData: userData
+          }
+        }),
+        'Settings sync'
+      );
       
       if (error) {
         console.error('Sync error:', error);
         console.error('Make sure the "auth" table exists in Supabase with RLS policies allowing UPDATE');
-        toast(error.message);
+        const message = getSupabaseMessage(error);
+        setAccountStatus('Sync failed: ' + message, 'error');
+        toast(message);
       } else {
         currentUser = data.user;
+        setAccountStatus('Settings synced successfully.', 'success');
         toast('Settings synced successfully!');
       }
     } catch (err) {
       console.error('Sync error:', err);
+      setAccountStatus('Sync failed: ' + err.message, 'error');
       toast('An error occurred syncing settings: ' + err.message);
     }
   };
@@ -814,7 +898,7 @@
     }
   };
   
-  window.updateAuthUI = async function() {
+  window.updateAuthUI = async function(profileOverride = null) {
     const authButtons = document.getElementById('authButtons');
     const userInfo = document.getElementById('userInfo');
 
@@ -828,7 +912,7 @@
       userInfo.classList.remove('hidden');
 
       try {
-        const profile = await fetchProfile();
+        const profile = profileOverride || await fetchProfile();
 
         const username = getCurrentUsername(profile);
         const avatarUrl = getCurrentAvatarUrl(profile);
@@ -875,7 +959,11 @@
 
   async function restoreAuthSession() {
     try {
-      const { data, error } = await supabaseClient.auth.getSession();
+      const { data, error } = await withTimeout(
+        supabaseClient.auth.getSession(),
+        'Session restore',
+        5000
+      );
 
       if (error) {
         console.error('Session restore error:', error);
@@ -887,7 +975,12 @@
       currentUser = data.session?.user || null;
 
       if (currentUser) {
-        const { data: freshUserData, error: userError } = await supabaseClient.auth.getUser();
+        localStorage.setItem('lastSignedInUserId', currentUser.id);
+        const { data: freshUserData, error: userError } = await withTimeout(
+          supabaseClient.auth.getUser(),
+          'User restore',
+          5000
+        );
         if (userError) {
           console.error('User refresh error:', userError);
         } else if (freshUserData?.user) {
@@ -908,7 +1001,7 @@
   // Listen for auth changes
   let authInitialized = false;
 
-  supabaseClient.auth.onAuthStateChange(async (event, session) => {
+  supabaseClient.auth.onAuthStateChange((event, session) => {
     console.log('Auth state changed:', event, session?.user?.email);
     currentUser = session?.user || null;
     
@@ -919,69 +1012,79 @@
       console.log('No session - user is signed out');
     }
 
-    // Skip toasts for the initial session restore on page load
-    if (event === 'INITIAL_SESSION') {
-      authInitialized = true;
-      restoreSyncedAppDataIfEmpty();
-      await updateAuthUI();
-      return;
-    }
+    setTimeout(async () => {
+      try {
+      if (session?.user) localStorage.setItem('lastSignedInUserId', session.user.id);
 
-    if (event === 'SIGNED_IN' && session?.user) {
+      // Skip toasts for the initial session restore on page load
+      if (event === 'INITIAL_SESSION') {
+        authInitialized = true;
+        restoreSyncedAppDataIfEmpty();
+        await updateAuthUI();
+        return;
+      }
+
+      if (event === 'SIGNED_IN' && session?.user) {
       // Ensure user has a profile (for OAuth users)
-      const { data: profile, error: profileError } = await supabaseClient
-        .from('profiles')
-        .select('username')
-        .eq('id', session.user.id)
-        .maybeSingle();
+        const { data: profile, error: profileError } = await withTimeout(
+          supabaseClient
+            .from('profiles')
+            .select('username')
+            .eq('id', session.user.id)
+            .maybeSingle(),
+          'Profile check'
+        );
 
-      if (profileError) {
-        console.error('Profile check error:', profileError);
+        if (profileError) {
+          console.error('Profile check error:', profileError);
+        }
+
+        if (!profile?.username) {
+          const defaultUsername = session.user.email?.split('@')[0] || 'user';
+          const timestamp = Date.now().toString().slice(-4);
+          const username = `${defaultUsername}_${timestamp}`;
+          const avatarUrl = session.user.user_metadata?.avatar_url || '';
+          const bio = session.user.user_metadata?.bio || '';
+
+          await withTimeout(
+            supabaseClient
+              .from('profiles')
+              .upsert({
+                id: session.user.id,
+                username: username,
+                bio,
+                avatar_url: avatarUrl || null,
+                updated_at: new Date().toISOString()
+              }, { onConflict: 'id' }),
+            'Profile creation'
+          );
+
+          syncUserMetadata({ username, bio, avatar_url: avatarUrl });
+          updateUserMetadataInBackground(
+            { username, bio, avatar_url: avatarUrl },
+            'Initial profile metadata sync'
+          );
+        }
+
+        restoreSyncedAppDataIfEmpty();
+
+        // Only show toast for actual sign-in actions, not page refreshes
+        if (authInitialized) {
+          toast('Welcome back!');
+        }
+        hideAccountModal();
+        await updateAuthUI();
+      } else if (event === 'SIGNED_OUT') {
+        toast('Signed out');
+        await updateAuthUI();
+      } else {
+        await updateAuthUI();
       }
-
-      if (!profile?.username) {
-        const defaultUsername = session.user.email?.split('@')[0] || 'user';
-        const timestamp = Date.now().toString().slice(-4);
-        const username = `${defaultUsername}_${timestamp}`;
-        const avatarUrl = session.user.user_metadata?.avatar_url || '';
-        const bio = session.user.user_metadata?.bio || '';
-
-        await supabaseClient
-          .from('profiles')
-          .upsert({
-            id: session.user.id,
-            username: username,
-            bio,
-            avatar_url: avatarUrl || null,
-            updated_at: new Date().toISOString()
-          }, { onConflict: 'id' });
-
-        const { data: updatedUserData } = await supabaseClient.auth.updateUser({
-          data: {
-            ...session.user.user_metadata,
-            username: username,
-            bio,
-            avatar_url: avatarUrl
-          }
-        });
-
-        if (updatedUserData?.user) currentUser = updatedUserData.user;
+      } catch (err) {
+        console.error('Auth state handler failed:', err);
+        await updateAuthUI();
       }
-
-      restoreSyncedAppDataIfEmpty();
-
-      // Only show toast for actual sign-in actions, not page refreshes
-      if (authInitialized) {
-        toast('Welcome back!');
-      }
-      hideAccountModal();
-      await updateAuthUI();
-    } else if (event === 'SIGNED_OUT') {
-      toast('Signed out');
-      await updateAuthUI();
-    } else {
-      await updateAuthUI();
-    }
+    }, 0);
   });
   
   // Initialize on page load
@@ -3509,6 +3612,36 @@
     margin-bottom: 12px;
   }
 
+  .account-status {
+    display: none;
+    margin: 0 0 16px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg2);
+    color: var(--text2);
+    font-size: 13px;
+    line-height: 1.4;
+  }
+
+  .account-status.success {
+    border-color: rgba(34, 197, 94, 0.35);
+    background: rgba(34, 197, 94, 0.1);
+    color: var(--green);
+  }
+
+  .account-status.warning {
+    border-color: rgba(245, 158, 11, 0.35);
+    background: rgba(245, 158, 11, 0.1);
+    color: var(--yellow);
+  }
+
+  .account-status.error {
+    border-color: rgba(239, 68, 68, 0.35);
+    background: rgba(239, 68, 68, 0.1);
+    color: #fca5a5;
+  }
+
   .profile-section {
     display: flex;
     gap: 20px;
@@ -4297,6 +4430,7 @@
     </div>
     
     <div class="modal-body">
+      <div id="accountStatus" class="account-status"></div>
       <div class="settings-section">
         <h3>Profile</h3>
         <div class="profile-section">

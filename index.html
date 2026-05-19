@@ -26,7 +26,13 @@
       throw new Error('Supabase config not loaded. Check supabase-config.js exists and is loaded correctly.');
     }
     const { createClient } = window.supabase;
-    supabaseClient = createClient(supabaseConfig.url, supabaseConfig.anonKey);
+    supabaseClient = createClient(supabaseConfig.url, supabaseConfig.anonKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true
+      }
+    });
     console.log('Supabase client initialized successfully');
   } catch (err) {
     console.error('Failed to initialize Supabase:', err);
@@ -36,6 +42,187 @@
   // Account system
   let currentUser = null;
   let hasSeenAccountPrompt = localStorage.getItem('hasSeenAccountPrompt');
+
+  function parseLocalJSON(key, fallback) {
+    try {
+      const value = localStorage.getItem(key);
+      return value ? JSON.parse(value) : fallback;
+    } catch (err) {
+      console.warn(`Ignoring invalid localStorage JSON for ${key}:`, err);
+      return fallback;
+    }
+  }
+
+  function getCurrentUsername(profile) {
+    return currentUser?.user_metadata?.username || profile?.username || getCachedProfile(currentUser?.id)?.username || currentUser?.email?.split('@')[0] || 'User';
+  }
+
+  function getCurrentAvatarUrl(profile) {
+    return currentUser?.user_metadata?.avatar_url || profile?.avatar_url || getCachedProfile(currentUser?.id)?.avatar_url || '';
+  }
+
+  function getCurrentBio(profile) {
+    return currentUser?.user_metadata?.bio || profile?.bio || getCachedProfile(currentUser?.id)?.bio || '';
+  }
+
+  function getProfileCacheKey(userId) {
+    return userId ? `profile_${userId}` : '';
+  }
+
+  function getCachedProfile(userId) {
+    const key = getProfileCacheKey(userId);
+    return key ? parseLocalJSON(key, null) : null;
+  }
+
+  function cacheProfile(profile) {
+    if (!currentUser || !profile) return;
+    const cached = getCachedProfile(currentUser.id) || {};
+    localStorage.setItem(getProfileCacheKey(currentUser.id), JSON.stringify({
+      ...cached,
+      ...profile,
+      updated_at: new Date().toISOString()
+    }));
+  }
+
+  async function fetchProfile() {
+    if (!currentUser) return null;
+
+    const cached = getCachedProfile(currentUser.id);
+
+    try {
+      const { data: profile, error } = await supabaseClient
+        .from('profiles')
+        .select('*')
+        .eq('id', currentUser.id)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Profile fetch error:', error);
+        return cached;
+      }
+
+      if (profile) {
+        cacheProfile(profile);
+        return profile;
+      }
+
+      return cached;
+    } catch (err) {
+      console.error('Profile fetch failed:', err);
+      return cached;
+    }
+  }
+
+  function collectAppDataForSync() {
+    const followed = parseLocalJSON('followed', []);
+    const watched = {};
+    const statuses = {};
+
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('w_')) watched[key] = localStorage.getItem(key);
+      if (key.startsWith('stat_')) statuses[key] = localStorage.getItem(key);
+    });
+
+    followed.forEach(id => {
+      const watchKey = 'w_' + id;
+      const statusKey = 'stat_' + id;
+      if (localStorage.getItem(watchKey) !== null) watched[watchKey] = localStorage.getItem(watchKey);
+      if (localStorage.getItem(statusKey) !== null) statuses[statusKey] = localStorage.getItem(statusKey);
+    });
+
+    return {
+      version: 2,
+      syncedAt: new Date().toISOString(),
+      cw: parseLocalJSON('cw', []),
+      followed,
+      watched,
+      statuses,
+      preferences: {
+        pref_theme: localStorage.getItem('pref_theme') || '0',
+        pref_ds: localStorage.getItem('pref_ds') || 'sub',
+        pref_source: localStorage.getItem('pref_source') || 'animepahe',
+        pref_autonext: localStorage.getItem('pref_autonext') || 'false',
+        custom_theme: localStorage.getItem('custom_theme') || ''
+      },
+      lastReadNotif: localStorage.getItem('lastReadNotif') || ''
+    };
+  }
+
+  function applySyncedAppData(appData) {
+    if (!appData || typeof appData !== 'object') return false;
+
+    if (Array.isArray(appData.cw)) localStorage.setItem('cw', JSON.stringify(appData.cw));
+    if (Array.isArray(appData.followed)) localStorage.setItem('followed', JSON.stringify(appData.followed));
+
+    if (appData.watched && typeof appData.watched === 'object') {
+      Object.entries(appData.watched).forEach(([key, value]) => {
+        if (key.startsWith('w_') && typeof value === 'string') localStorage.setItem(key, value);
+      });
+    }
+
+    if (appData.statuses && typeof appData.statuses === 'object') {
+      Object.entries(appData.statuses).forEach(([key, value]) => {
+        if (key.startsWith('stat_') && typeof value === 'string') localStorage.setItem(key, value);
+      });
+    }
+
+    if (appData.preferences && typeof appData.preferences === 'object') {
+      Object.entries(appData.preferences).forEach(([key, value]) => {
+        if (key.startsWith('pref_') && typeof value === 'string') localStorage.setItem(key, value);
+        if (key === 'custom_theme' && typeof value === 'string' && value) localStorage.setItem(key, value);
+      });
+    }
+
+    if (typeof appData.lastReadNotif === 'string' && appData.lastReadNotif) {
+      localStorage.setItem('lastReadNotif', appData.lastReadNotif);
+    }
+
+    return true;
+  }
+
+  function hasLocalAppData() {
+    return Boolean(
+      localStorage.getItem('cw') ||
+      localStorage.getItem('followed') ||
+      Object.keys(localStorage).some(key => key.startsWith('w_') || key.startsWith('stat_'))
+    );
+  }
+
+  function restoreSyncedAppDataIfEmpty() {
+    const appData = currentUser?.user_metadata?.appData;
+    if (!appData || hasLocalAppData()) return false;
+    return applySyncedAppData(appData);
+  }
+
+  function renderUserAvatar(container, username, avatarUrl) {
+    if (!container) return;
+
+    container.textContent = '';
+    const initial = (username || 'User').charAt(0).toUpperCase();
+
+    if (avatarUrl) {
+      const img = document.createElement('img');
+      img.src = avatarUrl;
+      img.alt = username || 'User';
+      img.loading = 'lazy';
+      img.referrerPolicy = 'no-referrer';
+      img.style.cssText = 'width: 100%; height: 100%; object-fit: cover; border-radius: inherit;';
+      img.onerror = () => {
+        container.textContent = '';
+        const span = document.createElement('span');
+        span.id = 'userInitial';
+        span.textContent = initial;
+        container.appendChild(span);
+      };
+      container.appendChild(img);
+      return;
+    }
+
+    const span = document.createElement('span');
+    span.id = 'userInitial';
+    span.textContent = initial;
+    container.appendChild(span);
+  }
   
   // Account Modal Functions
   window.showAccountModal = function() {
@@ -122,8 +309,11 @@
       if (error) {
         toast(error.message);
       } else {
-        // onAuthStateChange will handle updating UI and showing toast
         currentUser = data.user;
+        restoreSyncedAppDataIfEmpty();
+        hideAccountModal();
+        await updateAuthUI();
+        toast('Welcome back!');
       }
     } catch (err) {
       console.error('Sign in error:', err);
@@ -184,7 +374,7 @@
       const { data, error } = await supabaseClient.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: 'https://catime.app'
+          redirectTo: window.location.origin + window.location.pathname
         }
       });
       
@@ -218,20 +408,11 @@
       
       // Populate user data
       if (currentUser) {
-        // Fetch profile data from Supabase
-        const { data: profile, error } = await supabaseClient
-          .from('profiles')
-          .select('*')
-          .eq('id', currentUser.id)
-          .maybeSingle();
+        const profile = await fetchProfile();
         
-        if (error) {
-          console.error('Error fetching profile:', error);
-        }
-        
-        const username = profile?.username || currentUser.user_metadata?.username || currentUser.email?.split('@')[0] || 'User';
-        const bio = profile?.bio || '';
-        const avatarUrl = profile?.avatar_url || currentUser.user_metadata?.avatar_url;
+        const username = getCurrentUsername(profile);
+        const bio = getCurrentBio(profile);
+        const avatarUrl = getCurrentAvatarUrl(profile);
         const initial = username.charAt(0).toUpperCase();
         
         const usernameInput = document.getElementById('settingsUsername');
@@ -249,11 +430,11 @@
         const avatarImg = document.getElementById('settingsAvatarImg');
         const avatarInitial = document.getElementById('settingsAvatarInitial');
         
-        if (avatarUrl) {
+        if (avatarImg && avatarInitial && avatarUrl) {
           avatarImg.src = avatarUrl;
           avatarImg.style.display = 'block';
           avatarInitial.style.display = 'none';
-        } else {
+        } else if (avatarImg && avatarInitial) {
           avatarImg.style.display = 'none';
           avatarInitial.style.display = 'block';
           avatarInitial.textContent = initial;
@@ -302,13 +483,16 @@
     
     try {
       toast('Saving profile...');
+      const settingsAvatarImg = document.getElementById('settingsAvatarImg');
+      const existingAvatarUrl = currentUser.user_metadata?.avatar_url || (settingsAvatarImg?.style.display !== 'none' ? settingsAvatarImg.src : '');
       
       // Update user metadata
       const { data: userData, error: userError } = await supabaseClient.auth.updateUser({
         data: {
           ...currentUser.user_metadata,
           username: username,
-          bio: bio
+          bio: bio,
+          avatar_url: existingAvatarUrl || currentUser.user_metadata?.avatar_url || ''
         }
       });
       
@@ -320,6 +504,14 @@
         return;
       }
       
+      currentUser = userData.user;
+      cacheProfile({
+        id: currentUser.id,
+        username,
+        bio,
+        avatar_url: existingAvatarUrl || ''
+      });
+
       // Update profiles table
       console.log('Updating profiles table for user:', currentUser.id);
       const { data: profileData, error: profileError } = await supabaseClient
@@ -328,8 +520,9 @@
           id: currentUser.id,
           username: username,
           bio: bio,
+          avatar_url: existingAvatarUrl || null,
           updated_at: new Date().toISOString()
-        });
+        }, { onConflict: 'id' });
       
       console.log('Profile upsert response:', { profileData, profileError });
       
@@ -337,12 +530,11 @@
         console.error('Profile table update error:', profileError);
         console.error('Make sure the "profiles" table exists with columns: id, username, bio, updated_at');
         console.error('Also verify RLS policies allow INSERT/UPDATE for authenticated users');
-        toast('Error saving to profile table: ' + profileError.message);
-        return;
+        toast('Profile saved, but public profile sync failed: ' + profileError.message);
+      } else {
+        toast('Profile updated!');
       }
       
-      currentUser = userData.user;
-      toast('Profile updated!');
       await updateAuthUI();
     } catch (err) {
       console.error('Profile update error:', err);
@@ -404,16 +596,42 @@
         .from('avatars')
         .getPublicUrl(filePath);
       
-      console.log('Public URL:', publicUrl);
+      const avatarUrl = `${publicUrl}?v=${Date.now()}`;
+      console.log('Public URL:', avatarUrl);
+
+      const { data: userData, error: userError } = await supabaseClient.auth.updateUser({
+        data: {
+          ...currentUser.user_metadata,
+          avatar_url: avatarUrl
+        }
+      });
+
+      if (userError) {
+        console.error('Auth avatar metadata update error:', userError);
+        toast('Error saving avatar metadata: ' + userError.message);
+        return;
+      }
+
+      currentUser = userData.user;
+      cacheProfile({
+        id: currentUser.id,
+        username: currentUser.user_metadata?.username || currentUser.email?.split('@')[0] || 'User',
+        bio: currentUser.user_metadata?.bio || '',
+        avatar_url: avatarUrl
+      });
       
       // Update profiles table with avatar URL
+      const username = currentUser.user_metadata?.username || currentUser.email?.split('@')[0] || 'User';
+      const bio = currentUser.user_metadata?.bio || '';
       const { data: updateData, error: updateError } = await supabaseClient
         .from('profiles')
         .upsert({
           id: currentUser.id,
-          avatar_url: publicUrl,
+          username,
+          bio,
+          avatar_url: avatarUrl,
           updated_at: new Date().toISOString()
-        });
+        }, { onConflict: 'id' });
       
       console.log('Profile update:', { updateData, updateError });
       
@@ -421,22 +639,24 @@
         console.error('Profile update error:', updateError);
         console.error('Make sure the "profiles" table exists with columns: id, avatar_url, updated_at');
         console.error('Also verify RLS policies allow INSERT/UPDATE for authenticated users');
-        toast('Error saving avatar URL: ' + updateError.message);
-        return;
+        toast('Avatar saved, but public profile sync failed: ' + updateError.message);
+      } else {
+        toast('Avatar updated!');
       }
       
       // Update UI
       const avatarImg = document.getElementById('settingsAvatarImg');
       const avatarInitial = document.getElementById('settingsAvatarInitial');
       
-      avatarImg.src = publicUrl;
-      avatarImg.style.display = 'block';
-      avatarInitial.style.display = 'none';
+      if (avatarImg && avatarInitial) {
+        avatarImg.src = avatarUrl;
+        avatarImg.style.display = 'block';
+        avatarInitial.style.display = 'none';
+      }
       
       // Also update nav bar avatar
       await updateAuthUI();
       
-      toast('Avatar updated!');
     } catch (err) {
       console.error('Avatar upload error:', err);
       toast('An error occurred uploading avatar: ' + err.message);
@@ -504,25 +724,12 @@
     }
     
     try {
-      // Limit data size to avoid metadata limits (16KB max)
-      // Only sync last 20 items from each list to stay under limit
-      const continueWatching = JSON.parse(localStorage.getItem('continueWatching') || '[]').slice(0, 20);
-      const history = JSON.parse(localStorage.getItem('history') || '[]').slice(0, 20);
-      const list = JSON.parse(localStorage.getItem('list') || '[]').slice(0, 20);
-      
-      const userData = {
-        continueWatching,
-        history,
-        list,
-        theme: localStorage.getItem('theme') || '0',
-        defaultAudio: localStorage.getItem('defaultAudio') || 'sub',
-        defaultSource: localStorage.getItem('defaultSource') || 'animepahe'
-      };
+      const userData = collectAppDataForSync();
       
       // Check data size before sending
       const dataSize = JSON.stringify(userData).length;
-      if (dataSize > 10000) {
-        toast('Data too large to sync. Please clear some watch history.');
+      if (dataSize > 14000) {
+        toast('Data too large to sync. Export a backup or clear some watch progress.');
         return;
       }
       
@@ -539,12 +746,12 @@
         console.error('Make sure the "auth" table exists in Supabase with RLS policies allowing UPDATE');
         toast(error.message);
       } else {
-        toast('Settings synced successfully!');
         currentUser = data.user;
+        toast('Settings synced successfully!');
       }
     } catch (err) {
       console.error('Sync error:', err);
-      toast('An error occurred syncing settings');
+      toast('An error occurred syncing settings: ' + err.message);
     }
   };
   
@@ -621,47 +828,19 @@
       userInfo.classList.remove('hidden');
 
       try {
-        const { data: profile, error: profileError } = await supabaseClient
-          .from('profiles')
-          .select('username, avatar_url')
-          .eq('id', currentUser.id)
-          .maybeSingle();
+        const profile = await fetchProfile();
 
-        if (profileError) {
-          console.error('Profile fetch error:', profileError);
-          console.error('Make sure the "profiles" table exists in Supabase with RLS policies allowing SELECT');
-        }
-
-        const username = profile?.username || currentUser.user_metadata?.username || currentUser.email?.split('@')[0] || 'User';
-        const avatarUrl = profile?.avatar_url;
-        const initial = username.charAt(0).toUpperCase();
+        const username = getCurrentUsername(profile);
+        const avatarUrl = getCurrentAvatarUrl(profile);
 
         document.getElementById('userName').textContent = username;
 
         // Update avatar display safely (no innerHTML with user data)
-        const userAvatar = document.getElementById('userAvatar');
-        userAvatar.textContent = '';
-        if (avatarUrl) {
-          const img = document.createElement('img');
-          img.src = avatarUrl;
-          img.alt = username;
-          img.style.cssText = 'width: 100%; height: 100%; object-fit: cover; border-radius: inherit;';
-          userAvatar.appendChild(img);
-        } else {
-          const span = document.createElement('span');
-          span.id = 'userInitial';
-          span.textContent = initial;
-          userAvatar.appendChild(span);
-        }
+        renderUserAvatar(document.getElementById('userAvatar'), username, avatarUrl);
       } catch (err) {
         console.error('Error updating auth UI:', err);
         document.getElementById('userName').textContent = currentUser.email?.split('@')[0] || 'User';
-        const userAvatar = document.getElementById('userAvatar');
-        userAvatar.textContent = '';
-        const span = document.createElement('span');
-        span.id = 'userInitial';
-        span.textContent = '?';
-        userAvatar.appendChild(span);
+        renderUserAvatar(document.getElementById('userAvatar'), currentUser.email?.split('@')[0] || 'User', currentUser.user_metadata?.avatar_url || '');
       }
     } else {
       authButtons.classList.remove('hidden');
@@ -693,6 +872,38 @@
       window.history.replaceState({}, document.title, window.location.pathname);
     }
   }
+
+  async function restoreAuthSession() {
+    try {
+      const { data, error } = await supabaseClient.auth.getSession();
+
+      if (error) {
+        console.error('Session restore error:', error);
+        currentUser = null;
+        await updateAuthUI();
+        return;
+      }
+
+      currentUser = data.session?.user || null;
+
+      if (currentUser) {
+        const { data: freshUserData, error: userError } = await supabaseClient.auth.getUser();
+        if (userError) {
+          console.error('User refresh error:', userError);
+        } else if (freshUserData?.user) {
+          currentUser = freshUserData.user;
+        }
+
+        restoreSyncedAppDataIfEmpty();
+      }
+
+      await updateAuthUI();
+    } catch (err) {
+      console.error('Auth restore failed:', err);
+      currentUser = null;
+      await updateAuthUI();
+    }
+  }
   
   // Listen for auth changes
   let authInitialized = false;
@@ -711,6 +922,7 @@
     // Skip toasts for the initial session restore on page load
     if (event === 'INITIAL_SESSION') {
       authInitialized = true;
+      restoreSyncedAppDataIfEmpty();
       await updateAuthUI();
       return;
     }
@@ -731,19 +943,32 @@
         const defaultUsername = session.user.email?.split('@')[0] || 'user';
         const timestamp = Date.now().toString().slice(-4);
         const username = `${defaultUsername}_${timestamp}`;
+        const avatarUrl = session.user.user_metadata?.avatar_url || '';
+        const bio = session.user.user_metadata?.bio || '';
 
         await supabaseClient
           .from('profiles')
           .upsert({
             id: session.user.id,
             username: username,
+            bio,
+            avatar_url: avatarUrl || null,
             updated_at: new Date().toISOString()
-          });
+          }, { onConflict: 'id' });
 
-        await supabaseClient.auth.updateUser({
-          data: { username: username }
+        const { data: updatedUserData } = await supabaseClient.auth.updateUser({
+          data: {
+            ...session.user.user_metadata,
+            username: username,
+            bio,
+            avatar_url: avatarUrl
+          }
         });
+
+        if (updatedUserData?.user) currentUser = updatedUserData.user;
       }
+
+      restoreSyncedAppDataIfEmpty();
 
       // Only show toast for actual sign-in actions, not page refreshes
       if (authInitialized) {
@@ -763,7 +988,7 @@
   document.addEventListener('DOMContentLoaded', async () => {
     await handleAuthCallback();
     // Ensure UI is up to date once DOM is ready (in case onAuthStateChange fired early)
-    await updateAuthUI();
+    await restoreAuthSession();
     // Mark as initialized so future auth events show toasts
     authInitialized = true;
     // Show account prompt for new visitors after a short delay

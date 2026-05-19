@@ -4,7 +4,9 @@ Note: I have removed videasy and vidnest for now because they are down, animepah
 
 A cat-themed anime streaming app — fully standalone, no backend, no build step.
 
-**Live Demo:** https://cat-ime.netlify.app
+**Live Demo:** https://catime.app
+
+(yes i got a domain now :))
 
 If you like this project, please consider giving it a star ⭐!
 
@@ -50,7 +52,7 @@ If you like this project, please consider giving it a star ⭐!
 
 ## How to Use
 
-Go to: https://cat-ime.netlify.app or https://thecosmiccat.github.io/cat-ime/
+Go to: https://catime.app or https://thecosmiccat.github.io/cat-ime/
 
 ---
 

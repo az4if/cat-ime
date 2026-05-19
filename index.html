@@ -9,6 +9,16 @@
 <link rel="apple-touch-icon" sizes="180x180" href="icons/icon%20180.jpg">
 <link rel="apple-touch-icon" sizes="167x167" href="icons/icon%20167.jpg">
 
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-X1PS2PGBBG"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-X1PS2PGBBG');
+</script>
+
 <!-- Supabase Auth - Load in head for global accessibility -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
@@ -5678,6 +5688,7 @@
       // Thank you Videasy for providing the anime streaming API for free, you're the real MVP <3
       // NVM FUCK YOU VIDEASY, U JUST GET CANSER THE SEC I CHENGE THE UI
       // welcome vidnest so if videasy is fucking around u will save us
+      //well vidnest also fucked around for a bit
 
       function markWatched(id, ep) {
         ep = Number(ep);

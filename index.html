@@ -4015,8 +4015,8 @@
     <div class="sp-btns">
       <!-- Temporarily disabled - sources are down
       <button class="db2" id="spSrcVideasy" onclick="setSrc('videasy')">Videasy</button>
-      <button class="db2" id="spSrcVidnest" onclick="setSrc('vidnest')">Vidnest</button>
       -->
+      <button class="db2" id="spSrcVidnest" onclick="setSrc('vidnest')">Vidnest</button>
       <button class="db2" id="spSrcAnimepahe" onclick="setSrc('animepahe')">AnimePahe</button>
     </div>
   </div>
@@ -4321,8 +4321,9 @@
           <div class="dst"><button class="db2" id="dsSub" onclick="setDS('sub')">SUB</button><button class="db2"
               id="dsDub" onclick="setDS('dub')">DUB</button></div>
           <!-- Temporarily disabled - sources are down
-          <div class="dst"><button class="db2" id="srcVideasy" onclick="setSrc('videasy')">Videasy</button><button class="db2" id="srcVidnest" onclick="setSrc('vidnest')">Vidnest</button><button class="db2" id="srcAnimepahe" onclick="setSrc('animepahe')">AnimePahe</button></div>
+          <div class="dst"><button class="db2" id="srcVideasy" onclick="setSrc('videasy')">Videasy</button><button class="db2" id="srcAnimepahe" onclick="setSrc('animepahe')">AnimePahe</button></div>
           -->
+          <div class="dst"><button class="db2" id="srcVidnest" onclick="setSrc('vidnest')">Vidnest</button></div>
           <div class="dst"><button class="db2" id="srcAnimepahe" onclick="setSrc('animepahe')">AnimePahe</button></div>
           <button class="mkb" id="btnW" onclick="toggleMk('btnW')">✓ Watched</button>
           <button class="mkb" id="btnFollow" onclick="toggleFollow()">🔔 Follow</button>
@@ -5653,8 +5654,12 @@
           url = `https://player.videasy.net/anime/${malId}/${epNum}?color=${accentHex}`;
         }
         */
-        // Force animepahe for now
-        url = `https://vidnest.fun/animepahe/${malId}/${epNum}/${curDS}`;
+        if (curSource === 'vidnest') {
+          url = `https://vidnest.fun/anime/${malId}/${epNum}/${curDS}`;
+        } else {
+          // Force animepahe for now
+          url = `https://vidnest.fun/animepahe/${malId}/${epNum}/${curDS}`;
+        }
 
         if (playerBoxEl) {
           playerBoxEl.innerHTML = `<iframe src="${url}" allowfullscreen allow="autoplay; fullscreen; encrypted-media" referrerpolicy="no-referrer-when-downgrade" style="width:100%;height:100%;border:none" title="${sanitizeHTML(epTitle)}"></iframe>`;
@@ -5812,12 +5817,12 @@
         // Temporarily disabled - sources are down
         /*
         document.getElementById('srcVideasy').classList.toggle('on', s === 'videasy');
-        document.getElementById('srcVidnest').classList.toggle('on', s === 'vidnest');
         document.getElementById('srcAnimepahe').classList.toggle('on', s === 'animepahe');
         document.getElementById('spSrcVideasy').classList.toggle('on', s === 'videasy');
-        document.getElementById('spSrcVidnest').classList.toggle('on', s === 'vidnest');
         document.getElementById('spSrcAnimepahe').classList.toggle('on', s === 'animepahe');
         */
+        document.getElementById('srcVidnest').classList.toggle('on', s === 'vidnest');
+        document.getElementById('spSrcVidnest').classList.toggle('on', s === 'vidnest');
         document.getElementById('srcAnimepahe').classList.toggle('on', s === 'animepahe');
         document.getElementById('spSrcAnimepahe').classList.toggle('on', s === 'animepahe');
         if (curAnime) loadPlayer(curAnime.id, curEp, 'Episode ' + curEp, curEp, curAnime.eps);
@@ -6291,9 +6296,9 @@
       // Temporarily disabled - sources are down
       /*
       document.getElementById('srcVideasy').classList.toggle('on', curSource === 'videasy');
-      document.getElementById('srcVidnest').classList.toggle('on', curSource === 'vidnest');
       document.getElementById('srcAnimepahe').classList.toggle('on', curSource === 'animepahe');
       */
+      document.getElementById('srcVidnest').classList.toggle('on', curSource === 'vidnest');
       document.getElementById('srcAnimepahe').classList.toggle('on', curSource === 'animepahe');
       document.getElementById('dsSub').classList.toggle('on', curDS === 'sub');
       document.getElementById('dsDub').classList.toggle('on', curDS === 'dub');
@@ -6304,9 +6309,9 @@
       // Temporarily disabled - sources are down
       /*
       document.getElementById('spSrcVideasy').classList.toggle('on', curSource === 'videasy');
-      document.getElementById('spSrcVidnest').classList.toggle('on', curSource === 'vidnest');
       document.getElementById('spSrcAnimepahe').classList.toggle('on', curSource === 'animepahe');
       */
+      document.getElementById('spSrcVidnest').classList.toggle('on', curSource === 'vidnest');
       document.getElementById('spSrcAnimepahe').classList.toggle('on', curSource === 'animepahe');
       const spAN = document.getElementById('spAutoNext');
       spAN.classList.toggle('on', autoNext);

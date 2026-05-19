@@ -40,6 +40,7 @@
   }
   
   // Account system
+  window.CATIME_ACCOUNT_BUILD = 'account-fix-2026-05-19-2';
   let currentUser = null;
   let hasSeenAccountPrompt = localStorage.getItem('hasSeenAccountPrompt');
 
@@ -97,7 +98,11 @@
 
   function setAccountStatus(message, type = 'info') {
     const status = document.getElementById('accountStatus');
-    if (!status) return;
+    console.log('Account status:', { message, type, build: window.CATIME_ACCOUNT_BUILD });
+    if (!status) {
+      console.warn('Account status element not found');
+      return;
+    }
 
     status.textContent = message || '';
     status.className = `account-status ${type}`;
@@ -513,7 +518,7 @@
   };
   
   window.saveProfileSettings = async function() {
-    console.log('saveProfileSettings called');
+    console.log('saveProfileSettings called', { build: window.CATIME_ACCOUNT_BUILD });
     
     if (!currentUser) {
       setAccountStatus('You must be signed in to save profile.', 'error');
@@ -550,10 +555,12 @@
     }
     
     try {
+      console.log('Profile save entering try block', { build: window.CATIME_ACCOUNT_BUILD });
       setAccountStatus('Saving profile...', 'info');
       toast('Saving profile...');
       const settingsAvatarImg = document.getElementById('settingsAvatarImg');
-      const existingAvatarUrl = currentUser.user_metadata?.avatar_url || (settingsAvatarImg?.style.display !== 'none' ? settingsAvatarImg.src : '');
+      const existingAvatarUrl = currentUser.user_metadata?.avatar_url || ((settingsAvatarImg && settingsAvatarImg.style.display !== 'none') ? settingsAvatarImg.src : '');
+      console.log('Profile save avatar context:', { hasSettingsAvatarImg: Boolean(settingsAvatarImg), existingAvatarUrl });
 
       // Update profiles table
       console.log('Updating profiles table for user:', currentUser.id);
@@ -792,6 +799,7 @@
   };
   
   window.syncSettings = async function() {
+    console.log('syncSettings called', { build: window.CATIME_ACCOUNT_BUILD });
     // This will sync localStorage data to Supabase
     if (!currentUser) {
       setAccountStatus('You must be signed in to sync settings.', 'error');

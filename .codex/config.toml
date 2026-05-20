@@ -1,6 +1,0 @@
-[mcp_servers.supabase]
-args = [
-    "-y",
-    "@supabase/mcp-server-supabase@latest",
-]
-command = "npx"

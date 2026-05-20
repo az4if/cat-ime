@@ -50,7 +50,12 @@
   }
   
   // Account system
-  window.CATIME_ACCOUNT_BUILD = 'account-fix-2026-05-19-2';
+  window.CATIME_ACCOUNT_BUILD = 'account-fix-2026-05-20-1';
+  const APP_SYNC_TS_KEY = 'appData_syncedAt';
+  const APP_LOCAL_MOD_KEY = 'appData_localModifiedAt';
+  let suppressAutoSync = 0;
+  let autoSyncTimer = null;
+  let autoSyncInFlight = false;
   let currentUser = null;
   let hasSeenAccountPrompt = localStorage.getItem('hasSeenAccountPrompt');
 
@@ -224,33 +229,64 @@
     };
   }
 
+  function isAppDataStorageKey(key) {
+    return key === 'cw' || key === 'followed' || key === 'lastReadNotif' || key === 'custom_theme' ||
+      key.startsWith('w_') || key.startsWith('stat_') || key.startsWith('pref_');
+  }
+
+  function getTimestampMs(iso) {
+    if (!iso) return 0;
+    const t = new Date(iso).getTime();
+    return Number.isFinite(t) ? t : 0;
+  }
+
+  function markLocalAppDataModified() {
+    if (!currentUser || suppressAutoSync > 0) return;
+    localStorage.setItem(APP_LOCAL_MOD_KEY, new Date().toISOString());
+    scheduleAutoSync();
+  }
+
+  function notifyAppDataChanged() {
+    document.dispatchEvent(new CustomEvent('catime-appdata-changed'));
+  }
+
   function applySyncedAppData(appData) {
     if (!appData || typeof appData !== 'object') return false;
 
-    if (Array.isArray(appData.cw)) localStorage.setItem('cw', JSON.stringify(appData.cw));
-    if (Array.isArray(appData.followed)) localStorage.setItem('followed', JSON.stringify(appData.followed));
+    suppressAutoSync++;
+    try {
+      if (Array.isArray(appData.cw)) localStorage.setItem('cw', JSON.stringify(appData.cw));
+      if (Array.isArray(appData.followed)) localStorage.setItem('followed', JSON.stringify(appData.followed));
 
-    if (appData.watched && typeof appData.watched === 'object') {
-      Object.entries(appData.watched).forEach(([key, value]) => {
-        if (key.startsWith('w_') && typeof value === 'string') localStorage.setItem(key, value);
-      });
-    }
+      if (appData.watched && typeof appData.watched === 'object') {
+        Object.entries(appData.watched).forEach(([key, value]) => {
+          if (key.startsWith('w_') && typeof value === 'string') localStorage.setItem(key, value);
+        });
+      }
 
-    if (appData.statuses && typeof appData.statuses === 'object') {
-      Object.entries(appData.statuses).forEach(([key, value]) => {
-        if (key.startsWith('stat_') && typeof value === 'string') localStorage.setItem(key, value);
-      });
-    }
+      if (appData.statuses && typeof appData.statuses === 'object') {
+        Object.entries(appData.statuses).forEach(([key, value]) => {
+          if (key.startsWith('stat_') && typeof value === 'string') localStorage.setItem(key, value);
+        });
+      }
 
-    if (appData.preferences && typeof appData.preferences === 'object') {
-      Object.entries(appData.preferences).forEach(([key, value]) => {
-        if (key.startsWith('pref_') && typeof value === 'string') localStorage.setItem(key, value);
-        if (key === 'custom_theme' && typeof value === 'string' && value) localStorage.setItem(key, value);
-      });
-    }
+      if (appData.preferences && typeof appData.preferences === 'object') {
+        Object.entries(appData.preferences).forEach(([key, value]) => {
+          if (key.startsWith('pref_') && typeof value === 'string') localStorage.setItem(key, value);
+          if (key === 'custom_theme' && typeof value === 'string' && value) localStorage.setItem(key, value);
+        });
+      }
 
-    if (typeof appData.lastReadNotif === 'string' && appData.lastReadNotif) {
-      localStorage.setItem('lastReadNotif', appData.lastReadNotif);
+      if (typeof appData.lastReadNotif === 'string' && appData.lastReadNotif) {
+        localStorage.setItem('lastReadNotif', appData.lastReadNotif);
+      }
+
+      if (appData.syncedAt) {
+        localStorage.setItem(APP_SYNC_TS_KEY, appData.syncedAt);
+        localStorage.removeItem(APP_LOCAL_MOD_KEY);
+      }
+    } finally {
+      suppressAutoSync--;
     }
 
     return true;
@@ -264,11 +300,81 @@
     );
   }
 
-  function restoreSyncedAppDataIfEmpty() {
-    const appData = currentUser?.user_metadata?.appData;
-    if (!appData || hasLocalAppData()) return false;
-    return applySyncedAppData(appData);
+  async function refreshCurrentUserFromServer() {
+    if (!currentUser) return null;
+
+    try {
+      const { data, error } = await withTimeout(
+        supabaseClient.auth.getUser(),
+        'User refresh',
+        5000
+      );
+      if (error) {
+        console.warn('User refresh failed:', error);
+        return currentUser;
+      }
+      if (data?.user) currentUser = data.user;
+    } catch (err) {
+      console.warn('User refresh failed:', err);
+    }
+
+    return currentUser;
   }
+
+  async function mergeRemoteAppData(options = {}) {
+    const { silent = false } = options;
+    if (!currentUser) return false;
+
+    await refreshCurrentUserFromServer();
+
+    const remoteAppData = currentUser?.user_metadata?.appData;
+    const remoteTs = getTimestampMs(remoteAppData?.syncedAt);
+    const syncedTs = getTimestampMs(localStorage.getItem(APP_SYNC_TS_KEY));
+    const localModTs = getTimestampMs(localStorage.getItem(APP_LOCAL_MOD_KEY));
+
+    if (remoteAppData && remoteTs > syncedTs && remoteTs >= localModTs) {
+      applySyncedAppData(remoteAppData);
+      notifyAppDataChanged();
+      if (!silent) toast('Loaded your synced list and progress.');
+      return true;
+    }
+
+    if (!hasLocalAppData() && remoteAppData) {
+      applySyncedAppData(remoteAppData);
+      notifyAppDataChanged();
+      if (!silent) toast('Loaded your synced list and progress.');
+      return true;
+    }
+
+    if (hasLocalAppData() && (localModTs > syncedTs || !remoteAppData)) {
+      scheduleAutoSync();
+    }
+
+    return false;
+  }
+
+  function scheduleAutoSync(immediate = false) {
+    if (!currentUser || suppressAutoSync > 0) return;
+    clearTimeout(autoSyncTimer);
+    autoSyncTimer = setTimeout(() => {
+      window.syncSettings({ silent: true });
+    }, immediate ? 0 : 2500);
+  }
+
+  (function installAppDataAutoSync() {
+    const nativeSetItem = localStorage.setItem.bind(localStorage);
+    const nativeRemoveItem = localStorage.removeItem.bind(localStorage);
+
+    localStorage.setItem = function(key, value) {
+      nativeSetItem(key, value);
+      if (isAppDataStorageKey(key)) markLocalAppDataModified();
+    };
+
+    localStorage.removeItem = function(key) {
+      nativeRemoveItem(key);
+      if (isAppDataStorageKey(key)) markLocalAppDataModified();
+    };
+  })();
 
   function renderUserAvatar(container, username, avatarUrl) {
     if (!container) return;
@@ -388,7 +494,7 @@
       } else {
         currentUser = data.user;
         localStorage.setItem('lastSignedInUserId', currentUser.id);
-        restoreSyncedAppDataIfEmpty();
+        await mergeRemoteAppData({ silent: true });
         hideAccountModal();
         await updateAuthUI();
         toast('Welcome back!');
@@ -808,24 +914,30 @@
     }
   };
   
-  window.syncSettings = async function() {
-    console.log('syncSettings called', { build: window.CATIME_ACCOUNT_BUILD });
-    // This will sync localStorage data to Supabase
+  window.syncSettings = async function(options = {}) {
+    const { silent = false } = options;
+    console.log('syncSettings called', { build: window.CATIME_ACCOUNT_BUILD, silent });
     if (!currentUser) {
-      setAccountStatus('You must be signed in to sync settings.', 'error');
-      toast('You must be signed in to sync settings');
+      if (!silent) {
+        setAccountStatus('You must be signed in to sync settings.', 'error');
+        toast('You must be signed in to sync settings');
+      }
       return;
     }
+
+    if (autoSyncInFlight) return;
+    autoSyncInFlight = true;
     
     try {
-      setAccountStatus('Syncing settings...', 'info');
+      if (!silent) setAccountStatus('Syncing settings...', 'info');
       const userData = collectAppDataForSync();
       
-      // Check data size before sending
       const dataSize = JSON.stringify(userData).length;
       if (dataSize > 14000) {
-        setAccountStatus('Sync data is too large. Export a backup or clear some watch progress.', 'error');
-        toast('Data too large to sync. Export a backup or clear some watch progress.');
+        if (!silent) {
+          setAccountStatus('Sync data is too large. Export a backup or clear some watch progress.', 'error');
+          toast('Data too large to sync. Export a backup or clear some watch progress.');
+        }
         return;
       }
 
@@ -841,19 +953,28 @@
       
       if (error) {
         console.error('Sync error:', error);
-        console.error('Make sure the "auth" table exists in Supabase with RLS policies allowing UPDATE');
         const message = getSupabaseMessage(error);
-        setAccountStatus('Sync failed: ' + message, 'error');
-        toast(message);
+        if (!silent) {
+          setAccountStatus('Sync failed: ' + message, 'error');
+          toast(message);
+        }
       } else {
         currentUser = data.user;
-        setAccountStatus('Settings synced successfully.', 'success');
-        toast('Settings synced successfully!');
+        localStorage.setItem(APP_SYNC_TS_KEY, userData.syncedAt);
+        localStorage.removeItem(APP_LOCAL_MOD_KEY);
+        if (!silent) {
+          setAccountStatus('Settings synced successfully.', 'success');
+          toast('Settings synced successfully!');
+        }
       }
     } catch (err) {
       console.error('Sync error:', err);
-      setAccountStatus('Sync failed: ' + err.message, 'error');
-      toast('An error occurred syncing settings: ' + err.message);
+      if (!silent) {
+        setAccountStatus('Sync failed: ' + err.message, 'error');
+        toast('An error occurred syncing settings: ' + err.message);
+      }
+    } finally {
+      autoSyncInFlight = false;
     }
   };
   
@@ -1005,7 +1126,7 @@
           currentUser = freshUserData.user;
         }
 
-        restoreSyncedAppDataIfEmpty();
+        await mergeRemoteAppData({ silent: true });
       }
 
       await updateAuthUI();
@@ -1037,7 +1158,7 @@
       // Skip toasts for the initial session restore on page load
       if (event === 'INITIAL_SESSION') {
         authInitialized = true;
-        restoreSyncedAppDataIfEmpty();
+        await mergeRemoteAppData({ silent: true });
         await updateAuthUI();
         return;
       }
@@ -1084,7 +1205,7 @@
           );
         }
 
-        restoreSyncedAppDataIfEmpty();
+        await mergeRemoteAppData({ silent: !authInitialized });
 
         // Only show toast for actual sign-in actions, not page refreshes
         if (authInitialized) {
@@ -1094,6 +1215,10 @@
         await updateAuthUI();
       } else if (event === 'SIGNED_OUT') {
         toast('Signed out');
+        await updateAuthUI();
+      } else if (event === 'USER_UPDATED' && session?.user) {
+        currentUser = session.user;
+        await mergeRemoteAppData({ silent: true });
         await updateAuthUI();
       } else {
         await updateAuthUI();
@@ -4493,7 +4618,7 @@
       
       <div class="settings-section">
         <h3>Sync Settings</h3>
-        <p class="settings-desc">Sync your watch history, list, and preferences across devices</p>
+        <p class="settings-desc">Your list, progress, and preferences sync automatically when you make changes. Use Sync Now to force an upload, or sign in on another device to pull the latest data.</p>
         <button class="auth-btn primary" onclick="syncSettings()">Sync Now</button>
       </div>
       
@@ -4794,10 +4919,13 @@
           pausedSrc = null;
         }
         document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-        document.querySelectorAll('.nl').forEach(n => n.classList.remove('active'));
+        document.querySelectorAll('.nl, .mobile-nl').forEach(n => n.classList.remove('active'));
         document.getElementById('page-' + id).classList.add('active');
         const idx = { home: 0, search: 1, watch: 2, list: 3 };
-        if (idx[id] !== undefined) document.querySelectorAll('.nl')[idx[id]].classList.add('active');
+        if (idx[id] !== undefined) {
+          document.querySelectorAll('.nl')[idx[id]].classList.add('active');
+          document.querySelectorAll('.mobile-nl')[idx[id]].classList.add('active');
+        }
 
         if (id !== 'watch') {
           clearCountdown();
@@ -6334,6 +6462,24 @@
 
       // initialize year filter dropdown
       initializeYearFilter();
+
+      document.addEventListener('catime-appdata-changed', () => {
+        loadCW();
+        loadMyList();
+        loadUpcomingCalendar();
+        loadRecommendations();
+        const activePage = document.querySelector('.page.active');
+        if (activePage?.id === 'page-home') {
+          loadTrending();
+          loadTopRated();
+          loadMostPopular();
+          loadAction();
+          loadRomance();
+          loadFantasy();
+          loadComedy();
+          loadScifi();
+        }
+      });
 
       // load home page sections
       loadCW();

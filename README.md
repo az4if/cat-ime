@@ -2,7 +2,7 @@
 
 Note: I have removed videasy and vidnest for now because they are down, animepahn is still up,
 
-A cat-themed anime streaming app — fully standalone, no backend, no build step.
+A cat-themed anime streaming app made for the people that have nowhere to go
 
 **Live Demo:** https://catime.app
 
@@ -28,10 +28,11 @@ If you like this project, please consider giving it a star ⭐!
 - **Source Selection** — Choose your preferred streaming source
 
 ### 📋 Personal Library
-- **My List** — Track anime with Watching, Paused, and Dropped statuses
+- **My List** — Track anime with Watching, Plan to Watch, Completed, Paused, and Dropped statuses; filter and sort your list
 - **Progress Tracking** — See how many episodes you've watched for each series
 - **Data Persistence** — All data saved locally in your browser
 - **Export/Import** — Backup and restore your watch history and list
+- **Account Sync** — Sign in to sync list, progress, and preferences across devices
 
 ### 🎨 Customization
 - **Multiple Themes** — 8 built-in color themes (Default, Midnight Rose, Amber Noir, Arctic, Sakura, Purple, Emerald, Slate)

@@ -21,19 +21,13 @@
 
 <!-- Supabase Auth - Load in head for global accessibility -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>
-  // Supabase Configuration
-  window.supabaseConfig = {
-    url: 'https://vmnpuvyfyzdquetkakde.supabase.co',
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZtbnB1dnlmeXpkcXVldGtha2RlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc5MTEyMTQsImV4cCI6MjA5MzQ4NzIxNH0.TSDvhcFFpVHNjw0UZVIfLPwVSHfoBZSksd0mrGgjncE'
-  };
-</script>
+<script src="supabase-config.js"></script>
 <script>
   // Initialize Supabase
   let supabaseClient;
   try {
     if (!window.supabaseConfig || !window.supabaseConfig.url || !window.supabaseConfig.anonKey) {
-      throw new Error('Supabase config not loaded. Check supabase-config.js exists and is loaded correctly.');
+      throw new Error('Supabase config not loaded. Check supabase-config.js exists.');
     }
     const { createClient } = window.supabase;
     supabaseClient = createClient(supabaseConfig.url, supabaseConfig.anonKey, {
@@ -50,9 +44,10 @@
   }
   
   // Account system
-  window.CATIME_ACCOUNT_BUILD = 'account-fix-2026-05-20-1';
+  window.CATIME_ACCOUNT_BUILD = 'account-fix-2026-05-20-2';
   const APP_SYNC_TS_KEY = 'appData_syncedAt';
   const APP_LOCAL_MOD_KEY = 'appData_localModifiedAt';
+  let appDataTableAvailable = null;
   let suppressAutoSync = 0;
   let autoSyncTimer = null;
   let autoSyncInFlight = false;
@@ -218,15 +213,143 @@
       followed,
       watched,
       statuses,
-      preferences: {
-        pref_theme: localStorage.getItem('pref_theme') || '0',
-        pref_ds: localStorage.getItem('pref_ds') || 'sub',
-        pref_source: localStorage.getItem('pref_source') || 'animepahe',
-        pref_autonext: localStorage.getItem('pref_autonext') || 'false',
-        custom_theme: localStorage.getItem('custom_theme') || ''
-      },
+      preferences: (() => {
+        const prefs = {
+          pref_theme: localStorage.getItem('pref_theme') || '0',
+          pref_ds: localStorage.getItem('pref_ds') || 'sub',
+          pref_source: localStorage.getItem('pref_source') || 'animepahe',
+          pref_autonext: localStorage.getItem('pref_autonext') || 'false',
+          pref_list_filter: localStorage.getItem('pref_list_filter') || 'all',
+          pref_list_sort: localStorage.getItem('pref_list_sort') || 'title'
+        };
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith('pref_') && localStorage.getItem(key) !== null) {
+            prefs[key] = localStorage.getItem(key);
+          }
+        });
+        return prefs;
+      })(),
+      custom_theme: localStorage.getItem('custom_theme') || '',
       lastReadNotif: localStorage.getItem('lastReadNotif') || ''
     };
+  }
+
+  function normalizeRemoteAppData(raw, syncedAt) {
+    if (!raw || typeof raw !== 'object') return null;
+    return {
+      ...raw,
+      syncedAt: raw.syncedAt || syncedAt || null
+    };
+  }
+
+  function isMissingAppDataTableError(error) {
+    return error?.code === 'PGRST205' || /user_app_data/.test(error?.message || '');
+  }
+
+  async function probeAppDataTable() {
+    if (appDataTableAvailable !== null) return appDataTableAvailable;
+    if (!currentUser) {
+      appDataTableAvailable = false;
+      return false;
+    }
+
+    const { error } = await withTimeout(
+      supabaseClient.from('user_app_data').select('user_id').eq('user_id', currentUser.id).maybeSingle(),
+      'App data table probe',
+      5000
+    );
+
+    appDataTableAvailable = !error || !isMissingAppDataTableError(error);
+    if (error && !appDataTableAvailable) {
+      console.warn('user_app_data table not found — cloud sync table not set up on Supabase');
+    }
+    return appDataTableAvailable;
+  }
+
+  async function fetchRemoteAppDataFromTable() {
+    if (!currentUser || !(await probeAppDataTable())) return null;
+
+    const { data, error } = await withTimeout(
+      supabaseClient
+        .from('user_app_data')
+        .select('app_data, synced_at')
+        .eq('user_id', currentUser.id)
+        .maybeSingle(),
+      'App data fetch'
+    );
+
+    if (error) {
+      if (isMissingAppDataTableError(error)) appDataTableAvailable = false;
+      console.warn('App data table fetch failed:', error);
+      return null;
+    }
+
+    if (!data?.app_data) return null;
+    return normalizeRemoteAppData(data.app_data, data.synced_at);
+  }
+
+  async function pushAppDataToTable(userData) {
+    if (!currentUser || !(await probeAppDataTable())) {
+      return { data: null, error: { message: 'Cloud sync table not set up yet.' } };
+    }
+
+    return withTimeout(
+      supabaseClient
+        .from('user_app_data')
+        .upsert({
+          user_id: currentUser.id,
+          app_data: userData,
+          synced_at: userData.syncedAt
+        }, { onConflict: 'user_id' })
+        .select('synced_at')
+        .single(),
+      'App data sync'
+    );
+  }
+
+  async function getRemoteAppData() {
+    const tableData = await fetchRemoteAppDataFromTable();
+    if (tableData) return { data: tableData, source: 'table' };
+
+    await refreshCurrentUserFromServer();
+    const metadataData = normalizeRemoteAppData(currentUser?.user_metadata?.appData);
+    if (metadataData) return { data: metadataData, source: 'metadata' };
+
+    return { data: null, source: null };
+  }
+
+  async function pushRemoteAppData(userData) {
+    const tableResult = await pushAppDataToTable(userData);
+    if (!tableResult.error) return { ...tableResult, source: 'table' };
+
+    if (!isMissingAppDataTableError(tableResult.error)) {
+      return { ...tableResult, source: 'table' };
+    }
+
+    const dataSize = JSON.stringify(userData).length;
+    if (dataSize > 14000) {
+      return {
+        data: null,
+        error: { message: 'Sync data is too large. Try exporting a backup or clearing old watch progress.' },
+        source: 'metadata'
+      };
+    }
+
+    const metadataResult = await withTimeout(
+      supabaseClient.auth.updateUser({
+        data: {
+          ...currentUser.user_metadata,
+          appData: userData
+        }
+      }),
+      'Settings sync (legacy)'
+    );
+
+    if (!metadataResult.error && metadataResult.data?.user) {
+      currentUser = metadataResult.data.user;
+    }
+
+    return { ...metadataResult, source: 'metadata' };
   }
 
   function isAppDataStorageKey(key) {
@@ -277,6 +400,10 @@
         });
       }
 
+      if (typeof appData.custom_theme === 'string' && appData.custom_theme) {
+        localStorage.setItem('custom_theme', appData.custom_theme);
+      }
+
       if (typeof appData.lastReadNotif === 'string' && appData.lastReadNotif) {
         localStorage.setItem('lastReadNotif', appData.lastReadNotif);
       }
@@ -325,9 +452,7 @@
     const { silent = false } = options;
     if (!currentUser) return false;
 
-    await refreshCurrentUserFromServer();
-
-    const remoteAppData = currentUser?.user_metadata?.appData;
+    const { data: remoteAppData } = await getRemoteAppData();
     const remoteTs = getTimestampMs(remoteAppData?.syncedAt);
     const syncedTs = getTimestampMs(localStorage.getItem(APP_SYNC_TS_KEY));
     const localModTs = getTimestampMs(localStorage.getItem(APP_LOCAL_MOD_KEY));
@@ -931,25 +1056,8 @@
     try {
       if (!silent) setAccountStatus('Syncing settings...', 'info');
       const userData = collectAppDataForSync();
-      
-      const dataSize = JSON.stringify(userData).length;
-      if (dataSize > 14000) {
-        if (!silent) {
-          setAccountStatus('Sync data is too large. Export a backup or clear some watch progress.', 'error');
-          toast('Data too large to sync. Export a backup or clear some watch progress.');
-        }
-        return;
-      }
 
-      const { data, error } = await withTimeout(
-        supabaseClient.auth.updateUser({
-          data: {
-            ...currentUser.user_metadata,
-            appData: userData
-          }
-        }),
-        'Settings sync'
-      );
+      const { data, error, source } = await pushRemoteAppData(userData);
       
       if (error) {
         console.error('Sync error:', error);
@@ -959,11 +1067,11 @@
           toast(message);
         }
       } else {
-        currentUser = data.user;
         localStorage.setItem(APP_SYNC_TS_KEY, userData.syncedAt);
         localStorage.removeItem(APP_LOCAL_MOD_KEY);
         if (!silent) {
-          setAccountStatus('Settings synced successfully.', 'success');
+          const via = source === 'table' ? 'cloud' : 'account';
+          setAccountStatus(`Settings synced successfully (${via}).`, 'success');
           toast('Settings synced successfully!');
         }
       }
@@ -990,6 +1098,9 @@
     }
 
     try {
+      // Delete synced app data
+      await supabaseClient.from('user_app_data').delete().eq('user_id', currentUser.id);
+
       // Delete profile data
       const { error: profileError } = await supabaseClient
         .from('profiles')
@@ -2391,6 +2502,45 @@
   .sh {
     background: rgba(245, 158, 11, 0.12);
     color: #fbbf24
+  }
+
+  .list-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1rem;
+    margin: 0 0 1rem;
+    padding: 0.75rem 1rem;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+
+  .list-toolbar-label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text3);
+  }
+
+  .list-toolbar-select {
+    min-width: 9rem;
+    padding: 0.45rem 0.65rem;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg2);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.82rem;
+    cursor: pointer;
+  }
+
+  .list-toolbar-select:focus {
+    outline: 2px solid rgba(var(--accent-rgb), 0.35);
+    outline-offset: 1px;
   }
 
   .lb {
@@ -4491,6 +4641,29 @@
 <div class="page" id="page-list">
   <div class="list-wrap">
     <div class="list-hd"><span class="list-hd-t">My List</span></div>
+    <div class="list-toolbar">
+      <label class="list-toolbar-label">
+        Status
+        <select id="listStatusFilter" class="list-toolbar-select" onchange="applyListFilters()">
+          <option value="all">All</option>
+          <option value="sw">Watching</option>
+          <option value="sc">Completed</option>
+          <option value="spl">Plan to Watch</option>
+          <option value="sh">Paused</option>
+          <option value="sd">Dropped</option>
+        </select>
+      </label>
+      <label class="list-toolbar-label">
+        Sort
+        <select id="listSortBy" class="list-toolbar-select" onchange="applyListFilters()">
+          <option value="title">Title A–Z</option>
+          <option value="score">Score</option>
+          <option value="progress">Progress</option>
+          <option value="recent">Recently watched</option>
+          <option value="status">Status</option>
+        </select>
+      </label>
+    </div>
     <div class="calendar-section">
       <div class="sec-hd"><span class="sec-title">Upcoming Releases</span><span class="sec-lnk" onclick="loadUpcomingCalendar()">Refresh ↻</span></div>
       <div class="calendar-grid" id="calendarGrid">
@@ -4618,7 +4791,7 @@
       
       <div class="settings-section">
         <h3>Sync Settings</h3>
-        <p class="settings-desc">Your list, progress, and preferences sync automatically when you make changes. Use Sync Now to force an upload, or sign in on another device to pull the latest data.</p>
+        <p class="settings-desc">Your list, progress, and preferences sync automatically when you make changes. Use Sync Now to force an upload.</p>
         <button class="auth-btn primary" onclick="syncSettings()">Sync Now</button>
       </div>
       
@@ -5601,30 +5774,108 @@
       }
 
 
+      let myListCache = [];
+
+      function getListFilterPrefs() {
+        return {
+          status: localStorage.getItem('pref_list_filter') || 'all',
+          sort: localStorage.getItem('pref_list_sort') || 'title'
+        };
+      }
+
+      function syncListFilterControls() {
+        const prefs = getListFilterPrefs();
+        const statusEl = document.getElementById('listStatusFilter');
+        const sortEl = document.getElementById('listSortBy');
+        if (statusEl) statusEl.value = prefs.status;
+        if (sortEl) sortEl.value = prefs.sort;
+      }
+
+      function getRecentWatchTs(id) {
+        const cw = JSON.parse(localStorage.getItem('cw') || '[]');
+        return cw.find(x => x.id === id)?.ts || 0;
+      }
+
+      function compareListRows(a, b, sortBy) {
+        if (sortBy === 'score') return (b.scoreNum || 0) - (a.scoreNum || 0);
+        if (sortBy === 'progress') return (b.progressPct || 0) - (a.progressPct || 0);
+        if (sortBy === 'recent') return (b.recentTs || 0) - (a.recentTs || 0);
+        if (sortBy === 'status') {
+          const ai = statuses.findIndex(s => s.cls === a.status);
+          const bi = statuses.findIndex(s => s.cls === b.status);
+          return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+        }
+        return a.title.localeCompare(b.title, undefined, { sensitivity: 'base' });
+      }
+
+      function renderMyListRows(rows) {
+        const tbody = document.querySelector('.lt tbody');
+        if (!tbody) return;
+
+        if (!rows.length) {
+          const prefs = getListFilterPrefs();
+          const msg = prefs.status === 'all'
+            ? 'No anime in your list. Start following some!'
+            : 'No anime match this filter.';
+          tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--text3)">${msg}</td></tr>`;
+          return;
+        }
+
+        tbody.innerHTML = rows.map(row => {
+          const opts = statuses.map(s => `<option value="${s.cls}" ${row.status === s.cls ? 'selected' : ''}>${s.label}</option>`).join('');
+          const objJson = JSON.stringify(row.obj).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
+          return `<tr><td class="tn" onclick='watchAnime(${objJson})'>${row.title}</td><td><select class="sb2 ${row.status}" onchange="changeStat(${row.id}, this)" style="border:none;outline:none;cursor:pointer">${opts}</select></td><td style="color:var(--text2)">${row.watchedCount}/${row.totalEps}</td><td style="color:var(--yellow)">★ ${row.scoreStr}</td><td><button class="lb" onclick="toggleFollowFor(${row.id}, this)">Unfollow</button></td></tr>`;
+        }).join('');
+      }
+
+      function applyListFilters() {
+        const statusFilter = document.getElementById('listStatusFilter')?.value || 'all';
+        const sortBy = document.getElementById('listSortBy')?.value || 'title';
+        localStorage.setItem('pref_list_filter', statusFilter);
+        localStorage.setItem('pref_list_sort', sortBy);
+
+        let rows = [...myListCache];
+        if (statusFilter !== 'all') rows = rows.filter(row => row.status === statusFilter);
+        rows.sort((a, b) => compareListRows(a, b, sortBy));
+        renderMyListRows(rows);
+      }
+
       async function loadMyList() {
+        syncListFilterControls();
         const f = JSON.parse(localStorage.getItem('followed') || '[]');
         const tbody = document.querySelector('.lt tbody');
         if (!tbody) return;
-        if (!f.length) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text3)">No anime in your list. Start following some!</td></tr>'; return; }
+        if (!f.length) {
+          myListCache = [];
+          tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text3)">No anime in your list. Start following some!</td></tr>';
+          return;
+        }
 
         const q = `query($ids: [Int]){ Page(page:1, perPage:50){ media(id_in: $ids, isAdult: false){ id idMal title { english romaji } episodes averageScore coverImage { large } } } }`;
-        // no more nsfw anime in your list, sorry not sorry :P
         try {
           const res = await fetch('https://graphql.anilist.co', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q, variables: { ids: f } }) });
           const d = await res.json();
           if (d.data) {
-            tbody.innerHTML = '';
-            d.data.Page.media.forEach(m => {
+            myListCache = d.data.Page.media.map(m => {
               const rawTitle = m.title.english || m.title.romaji || 'Unknown';
-              const t = sanitizeHTML(rawTitle);
-              const obj = { id: m.id, malId: m.idMal, title: rawTitle, eps: m.episodes || 24, img: m.coverImage.large, dubbed: true };
-              const scoreStr = m.averageScore ? (m.averageScore / 10).toFixed(1) : '?';
+              const totalEps = m.episodes || 24;
+              const watched = JSON.parse(localStorage.getItem('w_' + m.id) || '[]');
               const savedStat = localStorage.getItem('stat_' + m.id) || 'sw';
-              const w = JSON.parse(localStorage.getItem('w_' + m.id) || '[]');
-              const opts = statuses.map(s => `<option value="${s.cls}" ${savedStat === s.cls ? 'selected' : ''}>${s.label}</option>`).join('');
-
-              tbody.innerHTML += `<tr><td class="tn" onclick='watchAnime(${JSON.stringify(obj).replace(/</g, '\\u003c').replace(/>/g, '\\u003e')})'>${t}</td><td><select class="sb2 ${savedStat}" onchange="changeStat(${m.id}, this)" style="border:none;outline:none;cursor:pointer">${opts}</select></td><td style="color:var(--text2)">${w.length}/${obj.eps}</td><td style="color:var(--yellow)">★ ${scoreStr}</td><td><button class="lb" onclick="toggleFollowFor(${m.id}, this)">Unfollow</button></td></tr>`;
+              const scoreNum = m.averageScore ? m.averageScore / 10 : 0;
+              return {
+                id: m.id,
+                title: sanitizeHTML(rawTitle),
+                status: savedStat,
+                watchedCount: watched.length,
+                totalEps,
+                progressPct: totalEps ? (watched.length / totalEps) * 100 : 0,
+                scoreStr: m.averageScore ? scoreNum.toFixed(1) : '?',
+                scoreNum,
+                recentTs: getRecentWatchTs(m.id),
+                obj: { id: m.id, malId: m.idMal, title: rawTitle, eps: totalEps, img: m.coverImage.large, dubbed: true }
+              };
             });
+            applyListFilters();
           }
         } catch (e) { console.error('loadMyList error:', e); }
       }
@@ -5688,7 +5939,8 @@
         let f = JSON.parse(localStorage.getItem('followed') || '[]');
         f = f.filter(x => x !== id);
         localStorage.setItem('followed', JSON.stringify(f));
-        btn.closest('tr').remove();
+        myListCache = myListCache.filter(row => row.id !== id);
+        applyListFilters();
         toast('Unfollowed');
         fetchNotifications();
         if (curAnime && curAnime.id === id) updateFollowBtn();
@@ -5824,6 +6076,11 @@
         const s = new Set(JSON.parse(localStorage.getItem(k) || '[]'));
         s.add(ep); localStorage.setItem(k, JSON.stringify([...s]));
 
+        const totalEps = curAnime?.id === id ? (curAnime.eps || 0) : 0;
+        if (totalEps > 0 && s.size >= totalEps) {
+          localStorage.setItem('stat_' + id, 'sc');
+        }
+
         let cw = JSON.parse(localStorage.getItem('cw') || '[]');
         cw = cw.filter(x => x.id !== id);
         cw.unshift({ id, ep, ts: Date.now() });
@@ -5937,6 +6194,9 @@
       function changeStat(id, sel) {
         localStorage.setItem('stat_' + id, sel.value);
         sel.className = 'sb2 ' + sel.value;
+        const cached = myListCache.find(row => row.id === id);
+        if (cached) cached.status = sel.value;
+        applyListFilters();
         toast('Status updated');
       }
 
@@ -5973,7 +6233,7 @@
       const statuses = [
         { cls: 'sw', label: '● Watching' },
         { cls: 'sc', label: '✓ Completed' },
-        { cls: 'spl', label: '◎ Planning' },
+        { cls: 'spl', label: '◎ Plan to Watch' },
         { cls: 'sd', label: '✕ Dropped' },
         { cls: 'sh', label: '⏸ Paused' }
       ];

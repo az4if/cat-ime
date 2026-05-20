@@ -8,6 +8,3 @@ Thumbs.db
 
 # Node modules (if you ever add them)
 node_modules/
-
-# Supabase config (contains secrets - use supabase-config.template.js instead)
-supabase-config.js

@@ -6,6 +6,10 @@ A cat-themed anime streaming app made for the people that have nowhere to go
 
 **Live Demo:** https://catime.app
 
+<p align="center">
+  <video src="demo.webm" poster="demo.webp" autoplay loop muted playsinline width="800"></video>
+</p>
+
 (yes i got a domain now :))
 
 If you like this project, please consider giving it a star ⭐!

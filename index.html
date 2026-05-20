@@ -1749,6 +1749,13 @@
     min-height: 1.2rem
   }
 
+  #searchSentinel {
+    width: 100%;
+    height: 1px;
+    margin-top: 0.5rem;
+    pointer-events: none
+  }
+
   .acard {
     background: var(--card);
     border-radius: 11px;
@@ -3101,18 +3108,26 @@
   @media (max-width: 768px) {
     /* Navigation adjustments */
     nav {
-      padding: 0 1rem;
+      padding: 0 0.75rem;
       height: 56px;
-      justify-content: space-between;
+      display: grid;
+      grid-template-columns: 40px 1fr auto;
+      align-items: center;
+      gap: 0.5rem;
       position: relative;
     }
     
-    /* Center the logo */
     .logo {
-      font-size: 1.2rem;
-      position: absolute;
-      left: 50%;
-      transform: translateX(-50%);
+      font-size: 1.05rem;
+      position: static;
+      transform: none;
+      justify-self: center;
+      min-width: 0;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      text-align: center;
     }
     
     /* Hide desktop navigation */
@@ -3134,7 +3149,7 @@
       z-index: 101;
       pointer-events: auto;
       position: relative;
-      order: -1;
+      justify-self: start;
     }
     
     .hamburger span {
@@ -3161,7 +3176,25 @@
     
     /* Move nav-r to the right */
     .nav-r {
-      margin-left: auto;
+      margin-left: 0;
+      justify-self: end;
+      min-width: 0;
+      flex-shrink: 1;
+    }
+
+    .user-info {
+      flex-direction: row;
+      gap: 0;
+      padding: 2px 4px;
+    }
+
+    .user-name {
+      display: none;
+    }
+
+    .user-avatar {
+      width: 32px;
+      height: 32px;
     }
     
     /* Hero section */
@@ -3288,18 +3321,14 @@
   @media (max-width: 480px) {
     /* Navigation */
     nav {
-      padding: 0 0.75rem;
+      padding: 0 0.65rem;
       height: 52px;
-      justify-content: space-between;
-      position: relative;
+      grid-template-columns: 36px 1fr auto;
+      gap: 0.35rem;
     }
     
-    /* Center the logo */
     .logo {
-      font-size: 1.1rem;
-      position: absolute;
-      left: 50%;
-      transform: translateX(-50%);
+      font-size: 0.95rem;
     }
     
     /* Hide desktop navigation */
@@ -3309,7 +3338,8 @@
     
     /* Hamburger menu stays on left */
     .hamburger {
-      order: -1;
+      width: 22px;
+      height: 22px;
     }
     
     .hamburger span {
@@ -3336,8 +3366,12 @@
     
     /* Nav-r stays on right */
     .nav-r {
-      margin-left: auto;
-      gap: 0.5rem;
+      gap: 0.35rem;
+    }
+
+    .user-avatar {
+      width: 30px;
+      height: 30px;
     }
     
     /* Hero */
@@ -4152,19 +4186,19 @@
     }
     
     .user-info {
-      flex-direction: column;
-      gap: 4px;
-      align-items: flex-end;
+      flex-direction: row;
+      gap: 0;
+      align-items: center;
+      padding: 2px;
     }
     
     .user-name {
-      max-width: 80px;
-      font-size: 12px;
+      display: none;
     }
     
     .user-avatar {
-      width: 28px;
-      height: 28px;
+      width: 30px;
+      height: 30px;
       font-size: 12px;
     }
     
@@ -5104,6 +5138,13 @@
           clearCountdown();
         }
         if (id === 'home') loadCW();
+        if (id === 'search') {
+          if (!document.getElementById('searchGrid').children.length) {
+            doSearch(document.getElementById('searchInput').value || '', true);
+          } else {
+            initSearchScroll();
+          }
+        }
         if (id === 'list') {
           loadMyList();
           loadUpcomingCalendar();
@@ -5340,6 +5381,7 @@
       let currentSearchSeason = '';
       let currentSearchYear = '';
       let searchObserver = null;
+      let searchScrollBound = false;
 
       function debouncedSearch(q) {
         clearTimeout(searchDebounceTimer);
@@ -5349,31 +5391,26 @@
       async function doSearch(q, reset = true) {
         const seq = ++searchSeq;
         q = q.trim();
-        const season = document.getElementById('seasonFilter').value;
-        const year = document.getElementById('yearFilter').value;
+        const season = reset ? document.getElementById('seasonFilter').value : currentSearchSeason;
+        const year = reset ? document.getElementById('yearFilter').value : currentSearchYear;
+        const genre = reset ? curGenre : currentSearchGenre;
 
         if (reset) {
           searchPage = 1;
           searchHasNextPage = true;
           searchSeen = new Set();
           currentSearchQuery = q;
-          currentSearchGenre = curGenre;
+          currentSearchGenre = genre;
           currentSearchSeason = season;
           currentSearchYear = year;
           document.getElementById('searchGrid').innerHTML = '';
           if (searchObserver) searchObserver.disconnect();
         }
 
-        if (!q && !curGenre && !season && !year && defaultSearchData && defaultSearchData.length && reset) {
-          document.getElementById('resInfo').textContent = 'Showing all anime';
-          renderGrid('searchGrid', defaultSearchData);
-          return;
-        }
-
-        if (q || curGenre || season || year) document.getElementById('resInfo').textContent = 'Searching...';
+        if (q || genre || season || year) document.getElementById('resInfo').textContent = 'Searching...';
         
         searchLoading = true;
-        const result = await fetchAnilistPage(q, curGenre, searchPage, 50, season, year, currentSearchSort);
+        const result = await fetchAnilistPage(q, genre, searchPage, 50, season, year, currentSearchSort);
         const freshItems = result.items.filter(item => {
           if (searchSeen.has(item.id)) return false;
           searchSeen.add(item.id);
@@ -5382,14 +5419,14 @@
         searchLoading = false;
 
         if (seq !== searchSeq) return;
-        if (!q && !curGenre && !season && !year && freshItems.length > 0 && reset) defaultSearchData = freshItems;
+        if (!q && !genre && !season && !year && freshItems.length > 0 && reset) defaultSearchData = freshItems;
 
         if (freshItems.length) appendGrid('searchGrid', freshItems, true);
         searchHasNextPage = result.hasNextPage;
         searchPage += 1;
 
         let filterText = '';
-        if (curGenre) filterText += curGenre;
+        if (genre) filterText += genre;
         if (season) filterText += (filterText ? ' · ' : '') + season;
         if (year) filterText += (filterText ? ' · ' : '') + year;
         
@@ -5399,7 +5436,7 @@
           document.getElementById('searchStatus').textContent = 'Scroll for more results';
           initSearchScroll();
         } else {
-          document.getElementById('searchStatus').textContent = 'You reached the end';
+          document.getElementById('searchStatus').textContent = document.getElementById('searchGrid').children.length ? 'You reached the end' : 'No results found';
         }
       }
 
@@ -5414,21 +5451,35 @@
         doSearch(document.getElementById('searchInput').value);
       }
 
+      function maybeLoadMoreSearch() {
+        const page = document.getElementById('page-search');
+        if (!page?.classList.contains('active') || searchLoading || !searchHasNextPage) return;
+        const sentinel = document.getElementById('searchSentinel');
+        if (!sentinel) return;
+        const rect = sentinel.getBoundingClientRect();
+        if (rect.top <= window.innerHeight + 400) {
+          doSearch(currentSearchQuery, false);
+        }
+      }
+
       function initSearchScroll() {
         const sentinel = document.getElementById('searchSentinel');
-        if (!sentinel || typeof IntersectionObserver === 'undefined') return;
+        if (!sentinel) return;
 
-        if (searchObserver) searchObserver.disconnect();
+        if (typeof IntersectionObserver !== 'undefined') {
+          if (searchObserver) searchObserver.disconnect();
+          searchObserver = new IntersectionObserver(entries => {
+            entries.forEach(entry => {
+              if (entry.isIntersecting) maybeLoadMoreSearch();
+            });
+          }, { root: null, rootMargin: '400px 0px', threshold: 0 });
+          searchObserver.observe(sentinel);
+        }
 
-        searchObserver = new IntersectionObserver(entries => {
-          entries.forEach(entry => {
-            if (entry.isIntersecting && !searchLoading && searchHasNextPage) {
-              doSearch(currentSearchQuery, false);
-            }
-          });
-        }, { rootMargin: '300px 0px' });
-
-        searchObserver.observe(sentinel);
+        if (!searchScrollBound) {
+          searchScrollBound = true;
+          window.addEventListener('scroll', maybeLoadMoreSearch, { passive: true });
+        }
       }
 
       async function loadSearchContent(type) {

@@ -215,7 +215,7 @@
       statuses,
       preferences: (() => {
         const prefs = {
-          pref_theme: localStorage.getItem('pref_theme') || '0',
+          pref_theme: localStorage.getItem('pref_theme') ?? '0',
           pref_ds: localStorage.getItem('pref_ds') || 'sub',
           pref_source: localStorage.getItem('pref_source') || 'animepahe',
           pref_autonext: localStorage.getItem('pref_autonext') || 'false',
@@ -1363,22 +1363,22 @@
   @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&display=swap');
 
   :root {
-    --bg: #1a2530;
-    --bg2: #243342;
-    --bg3: #2c3e50;
-    --bg4: #354b5e;
-    --accent: #4ca1af;
-    --text: #eef2f7;
-    --text2: #8da3b3;
-    --text3: #5a7383;
-    --border: rgba(76, 161, 175, 0.12);
-    --card: #202f3d;
+    --bg: #0e1531;
+    --bg2: #141d3e;
+    --bg3: #1a254a;
+    --bg4: #202d56;
+    --accent: #c9b8f5;
+    --text: #f0eeff;
+    --text2: #a090d8;
+    --text3: #6a5898;
+    --border: rgba(201, 184, 245, 0.15);
+    --card: #111830;
     --green: #22c55e;
     --blue: #4ca1af;
     --yellow: #f59e0b;
-    --accent-rgb: 76, 161, 175;
-    --nav-bg: rgba(26, 37, 48, 0.96);
-    --hero-bg: linear-gradient(135deg, #0a122e 0%, #0d0d1a 55%, #080f1a 100%)
+    --accent-rgb: 201, 184, 245;
+    --nav-bg: rgba(14, 21, 49, 0.96);
+    --hero-bg: linear-gradient(135deg, #080c1c 0%, #0a0d18 55%, #070b16 100%)
   }
 
   * {
@@ -4857,18 +4857,18 @@
       // well at least the code is cleaner now :)
 
       const themes = [
-        // 0 Default — deep ocean teal (keep)
-        { accent:'#4ca1af', bg:'#1a2530', bg2:'#243342', bg3:'#2c3e50', bg4:'#354b5e', card:'#202f3d', text:'#eef2f7', text2:'#8da3b3', text3:'#5a7383', border:'rgba(76,161,175,0.12)' },
+        // 0 Default — purple
+        { accent:'#c9b8f5', bg:'#0e1531', bg2:'#141d3e', bg3:'#1a254a', bg4:'#202d56', card:'#111830', text:'#f0eeff', text2:'#a090d8', text3:'#6a5898', border:'rgba(201,184,245,0.15)' },
         // 1 Midnight Rose — warm dark with rose-pink accent
         { accent:'#f4718f', bg:'#160d14', bg2:'#201219', bg3:'#2a1820', bg4:'#341e28', card:'#1b1017', text:'#fdf0f3', text2:'#c49aaa', text3:'#7a5060', border:'rgba(244,113,143,0.14)' },
         // 2 Amber Noir — warm black with golden amber
         { accent:'#f5a623', bg:'#141210', bg2:'#1e1a16', bg3:'#28231c', bg4:'#322c22', card:'#1a1612', text:'#fdf7ed', text2:'#c8aa80', text3:'#806040', border:'rgba(245,166,35,0.14)' },
-        // 3 Arctic — cool near-white light theme
-        { accent:'#0077cc', bg:'#f4f7fb', bg2:'#e8edf4', bg3:'#dde4ee', bg4:'#d2dae8', card:'#ffffff', text:'#0d1520', text2:'#4a6080', text3:'#8aa0b8', border:'rgba(0,119,204,0.14)' },
+        // 3 Frost — soft light theme
+        { accent:'#3b82f6', bg:'#cbd5e1', bg2:'#dce3ed', bg3:'#e8edf4', bg4:'#f1f5f9', card:'#ffffff', text:'#0f172a', text2:'#334155', text3:'#64748b', border:'rgba(59,130,246,0.2)' },
         // 4 Sakura — soft dark with cherry blossom pink
         { accent:'#e88fa8', bg:'#18101a', bg2:'#22162a', bg3:'#2c1c36', bg4:'#362242', card:'#1e1222', text:'#fdf0f5', text2:'#c098b0', text3:'#785868', border:'rgba(232,143,168,0.14)' },
-        // 5 Purple (keep)
-        { accent:'#c9b8f5', bg:'#0e1531', bg2:'#141d3e', bg3:'#1a254a', bg4:'#202d56', card:'#111830', text:'#f0eeff', text2:'#a090d8', text3:'#6a5898', border:'rgba(201,184,245,0.15)' },
+        // 5 Ocean — deep ocean teal
+        { accent:'#4ca1af', bg:'#1a2530', bg2:'#243342', bg3:'#2c3e50', bg4:'#354b5e', card:'#202f3d', text:'#eef2f7', text2:'#8da3b3', text3:'#5a7383', border:'rgba(76,161,175,0.12)' },
         // 6 Emerald Dark — deep forest with bright emerald
         { accent:'#34d399', bg:'#0d1a14', bg2:'#12211b', bg3:'#172922', bg4:'#1c3129', card:'#101e18', text:'#edfaf4', text2:'#80c4a8', text3:'#487858', border:'rgba(52,211,153,0.14)' },
         // 7 Slate Mono — pure monochrome with a blue-slate accent
@@ -4883,10 +4883,29 @@
         return '#' + hexToRgb(hex).map(c => Math.max(0,Math.round(c*f)).toString(16).padStart(2,'0')).join('');
       }
 
-      let particleColor = [76, 161, 175];
+      let particleColor = [201, 184, 245];
+
+      const THEME_LAYOUT_VERSION = 2;
+
+      function migrateThemeLayoutOnce() {
+        if (localStorage.getItem('pref_theme_layout') === String(THEME_LAYOUT_VERSION)) return;
+        const raw = localStorage.getItem('pref_theme');
+        if (raw === '5') localStorage.setItem('pref_theme', '0');
+        else if (raw === '0') localStorage.setItem('pref_theme', '5');
+        localStorage.setItem('pref_theme_layout', String(THEME_LAYOUT_VERSION));
+      }
+
+      function getSavedThemeIndex() {
+        migrateThemeLayoutOnce();
+        const raw = localStorage.getItem('pref_theme');
+        if (raw === null) return 0;
+        const n = parseInt(raw, 10);
+        return Number.isFinite(n) ? n : 0;
+      }
 
       function applyTheme(idx) {
         const t = themes[idx];
+        if (!t) return;
         const r = document.documentElement;
         r.style.setProperty('--accent', t.accent);
         r.style.setProperty('--bg',     t.bg);
@@ -4901,8 +4920,13 @@
         const [ar, ag, ab] = hexToRgb(t.accent);
         r.style.setProperty('--accent-rgb', `${ar}, ${ag}, ${ab}`);
         const [br, bg2, bb] = hexToRgb(t.bg);
-        r.style.setProperty('--nav-bg', `rgba(${br},${bg2},${bb},0.96)`);
-        r.style.setProperty('--hero-bg', `linear-gradient(135deg, ${darkenHex(t.bg,0.55)} 0%, ${darkenHex(t.bg,0.45)} 55%, ${darkenHex(t.bg,0.5)} 100%)`);
+        if (idx === 3) {
+          r.style.setProperty('--nav-bg', 'rgba(255,255,255,0.94)');
+          r.style.setProperty('--hero-bg', `linear-gradient(135deg, ${t.bg3} 0%, ${t.bg2} 45%, ${t.bg} 100%)`);
+        } else {
+          r.style.setProperty('--nav-bg', `rgba(${br},${bg2},${bb},0.96)`);
+          r.style.setProperty('--hero-bg', `linear-gradient(135deg, ${darkenHex(t.bg,0.55)} 0%, ${darkenHex(t.bg,0.45)} 55%, ${darkenHex(t.bg,0.5)} 100%)`);
+        }
         particleColor = [ar, ag, ab];
         localStorage.setItem('pref_theme', idx);
         document.querySelectorAll('.th-sw').forEach((s, i) => s.classList.toggle('active', i === idx));
@@ -4912,9 +4936,9 @@
         const wrap = document.getElementById('thSwatches');
         themes.forEach((t, i) => {
           const s = document.createElement('div');
-          s.className = 'th-sw' + (i === (parseInt(localStorage.getItem('pref_theme') || '0')) ? ' active' : '');
+          s.className = 'th-sw' + (i === getSavedThemeIndex() ? ' active' : '');
           s.style.background = `linear-gradient(to right, ${t.accent} 50%, ${t.bg} 50%)`;
-          s.title = i === 0 ? 'Default' : `Theme ${i}`;
+          s.title = i === 0 ? 'Default' : i === 5 ? 'Ocean' : i === 3 ? 'Frost' : `Theme ${i}`;
           s.onclick = () => applyTheme(i);
           wrap.appendChild(s);
         });
@@ -4924,7 +4948,8 @@
         document.getElementById('spPanel').classList.remove('open');
         document.getElementById('customThemePanel').classList.add('open');
         
-        const currentTheme = themes[parseInt(localStorage.getItem('pref_theme') || '0')];
+        const idx = getSavedThemeIndex();
+        const currentTheme = themes[idx >= 0 ? idx : 0];
         document.getElementById('ctAccent').value = currentTheme.accent;
         document.getElementById('ctBg').value = currentTheme.bg;
         document.getElementById('ctBg2').value = currentTheme.bg2;
@@ -6778,8 +6803,8 @@
       spAN.textContent = autoNext ? 'On' : 'Off';
       // build theme swatches + apply saved theme
       buildThemeSwatches();
-      const savedTheme = parseInt(localStorage.getItem('pref_theme') || '0');
-      if (savedTheme > 0) applyTheme(savedTheme);
+      const savedTheme = getSavedThemeIndex();
+      if (savedTheme >= 0) applyTheme(savedTheme);
 
       // initialize year filter dropdown
       initializeYearFilter();

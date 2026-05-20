@@ -1,6 +1,6 @@
 # 🐾 Cat-ime
 
-Note: I have removed videasy and vidnest for now because they are down, animepahn is still up,
+<p><strong><span style="color:#e11d48">⚠️ Warning:</span></strong> The video embeds use third-party sources with tons of redirect ads. Use a good ad blocker — we recommend <a href="https://chromewebstore.google.com/detail/ublock-origin-lite/ddkjiahejlhfcafbddmgiahcphecmpfh"><strong>uBlock Origin Lite</strong></a> (Chrome/Edge).</p>
 
 A cat-themed anime streaming app made for the people that have nowhere to go
 

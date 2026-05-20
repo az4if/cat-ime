@@ -6190,6 +6190,7 @@
         
         if (!cw.length) {
           recSection.style.display = 'none';
+          if (recScroll) recScroll.innerHTML = '';
           return;
         }
 
@@ -6239,6 +6240,7 @@
         cw = cw.filter(c => c.id !== id);
         localStorage.setItem('cw', JSON.stringify(cw));
         loadCW();
+        loadRecommendations();
         window.scheduleAutoSync(true);
       }
 

@@ -457,21 +457,17 @@
     const syncedTs = getTimestampMs(localStorage.getItem(APP_SYNC_TS_KEY));
     const localModTs = getTimestampMs(localStorage.getItem(APP_LOCAL_MOD_KEY));
 
-    if (remoteAppData && remoteTs > syncedTs && remoteTs >= localModTs) {
-      applySyncedAppData(remoteAppData);
-      notifyAppDataChanged();
-      if (!silent) toast('Loaded your synced list and progress.');
-      return true;
+    // Last-write-wins: pull if cloud is newer than local edits, push if local is newer
+    if (remoteAppData && (!hasLocalAppData() || remoteTs > localModTs)) {
+      if (remoteTs > syncedTs || !hasLocalAppData()) {
+        applySyncedAppData(remoteAppData);
+        notifyAppDataChanged();
+        if (!silent) toast('Loaded your synced list and progress.');
+        return true;
+      }
     }
 
-    if (!hasLocalAppData() && remoteAppData) {
-      applySyncedAppData(remoteAppData);
-      notifyAppDataChanged();
-      if (!silent) toast('Loaded your synced list and progress.');
-      return true;
-    }
-
-    if (hasLocalAppData() && (localModTs > syncedTs || !remoteAppData)) {
+    if (localModTs > remoteTs && (localModTs > syncedTs || !remoteAppData)) {
       scheduleAutoSync();
     }
 
@@ -485,6 +481,7 @@
       window.syncSettings({ silent: true });
     }, immediate ? 0 : 2500);
   }
+  window.scheduleAutoSync = scheduleAutoSync;
 
   (function installAppDataAutoSync() {
     const nativeSetItem = localStorage.setItem.bind(localStorage);
@@ -1350,6 +1347,16 @@
     authInitialized = true;
     // Show account prompt for new visitors after a short delay
     setTimeout(() => checkAuthState(), 1500);
+
+    // Re-check cloud sync when returning to an open tab (e.g. after editing on phone)
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && currentUser) {
+        mergeRemoteAppData({ silent: true });
+      }
+    });
+    window.addEventListener('pageshow', (e) => {
+      if (e.persisted && currentUser) mergeRemoteAppData({ silent: true });
+    });
   });
 </script>
 <style>
@@ -6232,6 +6239,7 @@
         cw = cw.filter(c => c.id !== id);
         localStorage.setItem('cw', JSON.stringify(cw));
         loadCW();
+        window.scheduleAutoSync(true);
       }
 
       function resumeAnime(a, ep) {

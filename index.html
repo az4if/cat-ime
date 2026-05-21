@@ -5043,7 +5043,7 @@
       function clearCW() {
         if (!confirm('Clear continue watching history?')) return;
         localStorage.removeItem('cw');
-        loadCW();
+        refreshCwAndRecommendations();
         toast('Continue watching cleared');
       }
 
@@ -5169,7 +5169,7 @@
         if (id !== 'watch') {
           clearCountdown();
         }
-        if (id === 'home') loadCW();
+        if (id === 'home') refreshCwAndRecommendations();
         if (id === 'search') {
           if (!document.getElementById('searchGrid').children.length) {
             doSearch(document.getElementById('searchInput').value || '', true);
@@ -6168,6 +6168,14 @@
         cw = cw.filter(x => x.id !== id);
         cw.unshift({ id, ep, ts: Date.now() });
         localStorage.setItem('cw', JSON.stringify(cw.slice(0, 10)));
+        refreshCwAndRecommendations();
+      }
+
+      let recLoadGen = 0;
+
+      function refreshCwAndRecommendations() {
+        loadCW();
+        loadRecommendations();
       }
 
       async function loadCW() {
@@ -6209,9 +6217,11 @@
       }
 
       async function loadRecommendations() {
+        const gen = ++recLoadGen;
         const cw = JSON.parse(localStorage.getItem('cw') || '[]');
         const recSection = document.getElementById('recSection');
         const recScroll = document.getElementById('recScroll');
+        const cwKey = cw.slice(0, 10).map(x => x.id).join(',');
         
         if (!cw.length) {
           recSection.style.display = 'none';
@@ -6225,6 +6235,9 @@
         try {
           const res = await fetch('https://graphql.anilist.co', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q, variables: { ids } }) });
           const d = await res.json();
+          if (gen !== recLoadGen) return;
+          const latestKey = JSON.parse(localStorage.getItem('cw') || '[]').slice(0, 10).map(x => x.id).join(',');
+          if (latestKey !== cwKey) return;
           if (d.data) {
             const allRecs = [];
             d.data.Page.media.forEach(m => {
@@ -6264,8 +6277,7 @@
         let cw = JSON.parse(localStorage.getItem('cw') || '[]');
         cw = cw.filter(c => c.id !== id);
         localStorage.setItem('cw', JSON.stringify(cw));
-        loadCW();
-        loadRecommendations();
+        refreshCwAndRecommendations();
         window.scheduleAutoSync(true);
       }
 
@@ -6810,10 +6822,9 @@
       initializeYearFilter();
 
       document.addEventListener('catime-appdata-changed', () => {
-        loadCW();
+        refreshCwAndRecommendations();
         loadMyList();
         loadUpcomingCalendar();
-        loadRecommendations();
         const activePage = document.querySelector('.page.active');
         if (activePage?.id === 'page-home') {
           loadTrending();
@@ -6828,8 +6839,7 @@
       });
 
       // load home page sections
-      loadCW();
-      loadRecommendations();
+      refreshCwAndRecommendations();
       loadTrending();
       loadTopRated();
       loadMostPopular();

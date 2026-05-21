@@ -22,6 +22,9 @@
 <!-- Supabase Auth - Load in head for global accessibility -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js"></script>
+<script src="js/catime-storage.js"></script>
+<script src="js/catime-api.js"></script>
+<script src="js/catime-ui.js"></script>
 <script>
   // Initialize Supabase
   let supabaseClient;
@@ -1172,17 +1175,29 @@
 
     if (currentUser) {
       authButtons.classList.add('hidden');
-      userInfo.classList.remove('hidden', 'is-ready');
-      userInfo.classList.add('is-loading');
+      const cachedProfile = profileOverride || getCachedProfile(currentUser.id);
+      const hadCache = Boolean(cachedProfile);
+
+      if (hadCache) {
+        userInfo.classList.remove('hidden', 'is-loading');
+        document.getElementById('userName').textContent = getCurrentUsername(cachedProfile);
+        await renderUserAvatar(
+          document.getElementById('userAvatar'),
+          getCurrentUsername(cachedProfile),
+          getCurrentAvatarUrl(cachedProfile)
+        );
+        revealUserInfo(userInfo);
+      } else {
+        userInfo.classList.remove('hidden', 'is-ready');
+        userInfo.classList.add('is-loading');
+      }
 
       try {
         const profile = profileOverride || await fetchProfile();
-
         const username = getCurrentUsername(profile);
         const avatarUrl = getCurrentAvatarUrl(profile);
 
         document.getElementById('userName').textContent = username;
-
         await renderUserAvatar(document.getElementById('userAvatar'), username, avatarUrl);
       } catch (err) {
         console.error('Error updating auth UI:', err);
@@ -1194,7 +1209,7 @@
         );
       }
 
-      revealUserInfo(userInfo);
+      if (!hadCache) revealUserInfo(userInfo);
     } else {
       authButtons.classList.remove('hidden');
       userInfo.classList.add('hidden');
@@ -4183,6 +4198,51 @@
     white-space: nowrap;
   }
 
+  .skeleton-card {
+    flex: 0 0 132px;
+    width: 132px;
+    height: 198px;
+    border-radius: 12px;
+    background: linear-gradient(90deg, var(--bg3) 25%, var(--bg4) 50%, var(--bg3) 75%);
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.2s ease-in-out infinite;
+  }
+
+  @keyframes skeleton-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  .section-state {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    padding: 1rem 0;
+    color: var(--text3);
+    font-size: 0.85rem;
+  }
+
+  .section-state--empty p {
+    margin: 0;
+  }
+
+  .section-retry-btn {
+    padding: 0.35rem 0.75rem;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg3);
+    color: var(--text);
+    font-size: 0.8rem;
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  .section-retry-btn:hover {
+    background: var(--bg4);
+    border-color: var(--accent);
+  }
+
   /* Mobile Responsive */
   @media (max-width: 768px) {
     .modal-content {
@@ -4484,6 +4544,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
       </button>
     </div>
+    <div class="grid-feed-status" id="cwStatus"></div>
   </div>
   
   <div class="sec" id="recSection" style="display:none">
@@ -4497,6 +4558,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
       </button>
     </div>
+    <div class="grid-feed-status" id="recStatus"></div>
   </div>
   
   <div class="sec">
@@ -5077,8 +5139,7 @@
 
       function clearCW() {
         if (!confirm('Clear continue watching history?')) return;
-        localStorage.removeItem('cw');
-        refreshCwAndRecommendations();
+        CatimeStorage.clearContinueWatching();
         toast('Continue watching cleared');
       }
 
@@ -5412,12 +5473,7 @@
         if (season) variables.season = season;
         if (year) variables.seasonYear = parseInt(year);
         try {
-          const res = await fetch('https://graphql.anilist.co', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query: q, variables })
-          });
-          const data = await res.json();
+          const data = await CatimeApi.fetchGraphQL(q, variables);
           if (!data.data) return { items: [], hasNextPage: false };
 
           return {
@@ -5910,8 +5966,7 @@
       }
 
       function getRecentWatchTs(id) {
-        const cw = JSON.parse(localStorage.getItem('cw') || '[]');
-        return cw.find(x => x.id === id)?.ts || 0;
+        return CatimeStorage.getContinueWatching().find(x => x.id === id)?.ts || 0;
       }
 
       function compareListRows(a, b, sortBy) {
@@ -6199,11 +6254,7 @@
           localStorage.setItem('stat_' + id, 'sc');
         }
 
-        let cw = JSON.parse(localStorage.getItem('cw') || '[]');
-        cw = cw.filter(x => x.id !== id);
-        cw.unshift({ id, ep, ts: Date.now() });
-        localStorage.setItem('cw', JSON.stringify(cw.slice(0, 10)));
-        refreshCwAndRecommendations();
+        CatimeStorage.updateContinueWatching(id, ep);
       }
 
       let recLoadGen = 0;
@@ -6214,28 +6265,41 @@
       }
 
       async function loadCW() {
-        const cw = JSON.parse(localStorage.getItem('cw') || '[]');
+        const cw = CatimeStorage.getContinueWatching();
         const scroll = document.getElementById('cwScroll');
         if (!scroll) return;
-        if (!cw.length) { scroll.innerHTML = '<div style="font-size:0.8rem;color:var(--text3);padding:1rem 0">No continue watching history available. Start watching some anime!</div>'; return; }
+
+        if (!cw.length) {
+          CatimeUI.showSectionEmpty('cwScroll', 'cwStatus', 'No continue watching history yet. Start watching some anime!');
+          return;
+        }
+
+        CatimeUI.renderSkeletonScroll('cwScroll', 4);
+        CatimeUI.setStatus('cwStatus', 'Loading continue watching...');
 
         const ids = cw.map(x => x.id);
         const q = `query($ids: [Int]){ Page(page:1, perPage:10){ media(id_in: $ids, isAdult: false){ id idMal title { english romaji } episodes averageScore coverImage { large } } } }`;
-        try {
-          const res = await fetch('https://graphql.anilist.co', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q, variables: { ids } }) });
-          const d = await res.json();
-          if (d.data) {
-            scroll.innerHTML = '';
-            cw.forEach(item => {
-              const m = d.data.Page.media.find(x => x.id === item.id);
-              if (!m) return;
-              const rawTitle = m.title.english || m.title.romaji || 'Unknown';
-              const t = sanitizeHTML(rawTitle);
-              const total = m.episodes || 24;
-              const pct = Math.min(100, (item.ep / total) * 100);
-              const obj = { id: m.id, malId: m.idMal, title: rawTitle, eps: total, img: m.coverImage.large, dubbed: true, score: m.averageScore ? (m.averageScore / 10).toFixed(1) : '?' };
 
-              scroll.innerHTML += `<div class="cw-card" onclick='resumeAnime(${JSON.stringify(obj).replace(/</g, '\\u003c').replace(/>/g, '\\u003e')}, ${item.ep})'>
+        try {
+          const d = await CatimeApi.fetchGraphQL(q, { ids });
+          if (!d.data) {
+            CatimeUI.showSectionError('cwScroll', 'cwStatus', 'Could not load continue watching.', loadCW);
+            return;
+          }
+
+          scroll.innerHTML = '';
+          let rendered = 0;
+          cw.forEach(item => {
+            const m = d.data.Page.media.find(x => x.id === item.id);
+            if (!m) return;
+            rendered++;
+            const rawTitle = m.title.english || m.title.romaji || 'Unknown';
+            const t = sanitizeHTML(rawTitle);
+            const total = m.episodes || 24;
+            const pct = Math.min(100, (item.ep / total) * 100);
+            const obj = { id: m.id, malId: m.idMal, title: rawTitle, eps: total, img: m.coverImage.large, dubbed: true, score: m.averageScore ? (m.averageScore / 10).toFixed(1) : '?' };
+
+            scroll.innerHTML += `<div class="cw-card" onclick='resumeAnime(${JSON.stringify(obj).replace(/</g, '\\u003c').replace(/>/g, '\\u003e')}, ${item.ep})'>
              <div class="cw-thumb">
                <img src="${m.coverImage.large}">
                <div class="cw-rm" onclick="event.stopPropagation(); removeCW(${item.id})">×</div>
@@ -6246,73 +6310,91 @@
                <div class="pr"><div class="pb"><div class="pf" style="width:${pct}%"></div></div><div class="pt">${item.ep}/${total}</div></div>
              </div>
            </div>`;
-            });
+          });
+
+          if (!rendered) {
+            CatimeUI.showSectionError('cwScroll', 'cwStatus', 'Could not load continue watching.', loadCW);
+            return;
           }
-        } catch (e) { console.error('loadCW error:', e); }
+          CatimeUI.setStatus('cwStatus', '');
+        } catch (e) {
+          console.error('loadCW error:', e);
+          CatimeUI.showSectionError('cwScroll', 'cwStatus', 'Could not load continue watching.', loadCW);
+        }
       }
 
       async function loadRecommendations() {
         const gen = ++recLoadGen;
-        const cw = JSON.parse(localStorage.getItem('cw') || '[]');
+        const sourceIds = CatimeStorage.getRecommendationSourceIds();
+        const excludeIds = new Set(CatimeStorage.getContinueWatching().map(x => x.id));
         const recSection = document.getElementById('recSection');
         const recScroll = document.getElementById('recScroll');
-        const cwKey = cw.slice(0, 10).map(x => x.id).join(',');
-        
-        if (!cw.length) {
+        const sourceKey = sourceIds.join(',');
+
+        if (!sourceIds.length) {
           recSection.style.display = 'none';
           if (recScroll) recScroll.innerHTML = '';
+          CatimeUI.setStatus('recStatus', '');
           return;
         }
 
-        const ids = cw.slice(0, 10).map(x => x.id);
-        const q = `query($ids: [Int]){ Page(page:1, perPage:10){ media(id_in: $ids, isAdult: false){ recommendations { edges { node { mediaRecommendation { id idMal title { english romaji } episodes averageScore coverImage { large } bannerImage } } } } } } }`;
-        
+        recSection.style.display = 'block';
+        CatimeUI.renderSkeletonScroll('recScroll', 6);
+        CatimeUI.setStatus('recStatus', 'Loading recommendations...');
+
+        const q = `query($ids: [Int]){ Page(page:1, perPage:15){ media(id_in: $ids, isAdult: false){ recommendations { edges { node { mediaRecommendation { id idMal title { english romaji } episodes averageScore coverImage { large } bannerImage } } } } } } }`;
+
         try {
-          const res = await fetch('https://graphql.anilist.co', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q, variables: { ids } }) });
-          const d = await res.json();
+          const d = await CatimeApi.fetchGraphQL(q, { ids: sourceIds });
           if (gen !== recLoadGen) return;
-          const latestKey = JSON.parse(localStorage.getItem('cw') || '[]').slice(0, 10).map(x => x.id).join(',');
-          if (latestKey !== cwKey) return;
-          if (d.data) {
-            const allRecs = [];
-            d.data.Page.media.forEach(m => {
-              if (m.recommendations && m.recommendations.edges) {
-                m.recommendations.edges.slice(0, 10).forEach(e => {
-                  const rec = e.node.mediaRecommendation;
-                  if (rec && !allRecs.find(r => r.id === rec.id)) {
-                    allRecs.push({
-                      id: rec.id,
-                      malId: rec.idMal,
-                      title: rec.title.english || rec.title.romaji || "Unknown Title",
-                      eps: rec.episodes || 24,
-                      score: rec.averageScore ? (rec.averageScore / 10).toFixed(1) : '?',
-                      img: rec.coverImage.large,
-                      banner: rec.bannerImage || null,
-                      dubbed: true
-                    });
-                  }
-                });
-              }
-            });
-            
-            if (allRecs.length > 0) {
-              recSection.style.display = 'block';
-              recScroll.innerHTML = '';
-              appendHorizontalScroll('recScroll', allRecs.slice(0, 50), true);
-            } else {
-              recSection.style.display = 'none';
+          const latestKey = CatimeStorage.getRecommendationSourceIds().join(',');
+          if (latestKey !== sourceKey) return;
+
+          if (!d.data) {
+            CatimeUI.showSectionError('recScroll', 'recStatus', 'Could not load recommendations.', loadRecommendations);
+            return;
+          }
+
+          const allRecs = [];
+          d.data.Page.media.forEach(m => {
+            if (m.recommendations && m.recommendations.edges) {
+              m.recommendations.edges.slice(0, 10).forEach(e => {
+                const rec = e.node.mediaRecommendation;
+                if (rec && !excludeIds.has(rec.id) && !allRecs.find(r => r.id === rec.id)) {
+                  allRecs.push({
+                    id: rec.id,
+                    malId: rec.idMal,
+                    title: rec.title.english || rec.title.romaji || 'Unknown Title',
+                    eps: rec.episodes || 24,
+                    score: rec.averageScore ? (rec.averageScore / 10).toFixed(1) : '?',
+                    img: rec.coverImage.large,
+                    banner: rec.bannerImage || null,
+                    dubbed: true
+                  });
+                }
+              });
             }
+          });
+
+          if (allRecs.length > 0) {
+            recSection.style.display = 'block';
+            recScroll.innerHTML = '';
+            appendHorizontalScroll('recScroll', allRecs.slice(0, 50), true);
+            CatimeUI.setStatus('recStatus', '');
+          } else {
+            recSection.style.display = 'none';
+            CatimeUI.setStatus('recStatus', '');
           }
         } catch (e) {
-          recSection.style.display = 'none';
+          console.error('loadRecommendations error:', e);
+          recSection.style.display = 'block';
+          CatimeUI.showSectionError('recScroll', 'recStatus', 'Could not load recommendations.', loadRecommendations);
         }
       }
+      window.loadRecommendations = loadRecommendations;
 
       window.removeCW = function(id) {
-        let cw = JSON.parse(localStorage.getItem('cw') || '[]');
-        cw = cw.filter(c => c.id !== id);
-        localStorage.setItem('cw', JSON.stringify(cw));
-        refreshCwAndRecommendations();
+        CatimeStorage.removeFromContinueWatching(id);
         window.scheduleAutoSync(true);
       }
 
@@ -6433,7 +6515,7 @@
         if (reset) {
           trendingPage = 1;
           trendingSeen = new Set();
-          document.getElementById('trendingScroll').innerHTML = '';
+          CatimeUI.renderSkeletonScroll('trendingScroll', 6);
           setTrendingStatus('Loading trending anime...');
         }
 
@@ -6499,7 +6581,7 @@
         if (reset) {
           topRatedPage = 1;
           topRatedSeen = new Set();
-          document.getElementById('topRatedScroll').innerHTML = '';
+          CatimeUI.renderSkeletonScroll('topRatedScroll', 6);
           document.getElementById('topRatedStatus').textContent = 'Loading top rated anime...';
         }
 
@@ -6856,6 +6938,10 @@
       // initialize year filter dropdown
       initializeYearFilter();
 
+      CatimeStorage.onContinueWatchingChanged(() => {
+        refreshCwAndRecommendations();
+      });
+
       document.addEventListener('catime-appdata-changed', () => {
         refreshCwAndRecommendations();
         loadMyList();
@@ -6871,6 +6957,15 @@
           loadComedy();
           loadScifi();
         }
+      });
+
+      CatimeUI.initKeyboardShortcuts({
+        goPage,
+        goNextEpisode,
+        toggleNP,
+        toggleSP,
+        hideAccountSettings: window.hideAccountSettings,
+        hideAccountModal: window.hideAccountModal
       });
 
       // load home page sections

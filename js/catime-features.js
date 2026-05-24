@@ -99,12 +99,13 @@
     return true;
   }
 
-  function updateRoute(page, animeId, ep) {
+  function updateRoute(page, animeId, ep, audio) {
     const url = new URL(location.href);
     if (!page) {
       url.searchParams.delete('page');
       url.searchParams.delete('anime');
       url.searchParams.delete('ep');
+      url.searchParams.delete('audio');
       history.replaceState({}, '', url);
       return;
     }
@@ -112,11 +113,14 @@
     if (page === 'watch' && animeId) {
       url.searchParams.set('anime', String(animeId));
       url.searchParams.set('ep', String(ep || 1));
+      const mode = audio || localStorage.getItem('pref_ds') || 'sub';
+      if (mode === 'sub' || mode === 'dub') url.searchParams.set('audio', mode);
     } else {
       url.searchParams.delete('anime');
       url.searchParams.delete('ep');
+      url.searchParams.delete('audio');
     }
-    history.replaceState({ page, animeId, ep }, '', url);
+    history.replaceState({ page, animeId, ep, audio }, '', url);
   }
 
   async function fetchMediaById(id) {
@@ -191,14 +195,17 @@
     document.getElementById('detailDrawer')?.classList.remove('open');
   }
 
-  function shareAnime(id, ep) {
+  function shareAnime(id, ep, audio) {
     const url = new URL(location.href);
     url.searchParams.set('page', 'watch');
     url.searchParams.set('anime', String(id));
     if (ep) url.searchParams.set('ep', String(ep));
     else url.searchParams.delete('ep');
+    const mode = audio || localStorage.getItem('pref_ds') || 'sub';
+    if (mode === 'sub' || mode === 'dub') url.searchParams.set('audio', mode);
+    const label = mode === 'dub' ? 'DUB' : 'SUB';
     navigator.clipboard?.writeText(url.toString()).then(() => {
-      if (typeof global.toast === 'function') global.toast('Link copied!');
+      if (typeof global.toast === 'function') global.toast(`Link copied! (${label})`);
     }).catch(() => {
       if (typeof global.toast === 'function') global.toast(url.toString());
     });
@@ -399,12 +406,16 @@
     const page = params.get('page');
     const animeId = params.get('anime');
     const ep = Math.max(1, parseInt(params.get('ep') || '1', 10) || 1);
+    const audio = params.get('audio');
     if (page && page !== 'home' && typeof global.goPage === 'function') global.goPage(page);
     if (animeId && typeof global.watchAnime === 'function') {
       const m = await fetchMediaById(animeId);
       if (m) {
         const card = mediaToCard(m);
         global.watchAnime(card);
+        if ((audio === 'sub' || audio === 'dub') && typeof global.setDS === 'function') {
+          global.setDS(audio);
+        }
         setTimeout(() => {
           const eps = document.querySelectorAll('.epi');
           if (eps[ep - 1]) eps[ep - 1].click();

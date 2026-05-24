@@ -4355,7 +4355,7 @@
   .acard-info-btn {
     position: absolute;
     top: 6px;
-    right: 6px;
+    left: 6px;
     z-index: 3;
     width: 26px;
     height: 26px;
@@ -4369,7 +4369,8 @@
     transition: opacity 0.15s;
   }
   .acard-thumb { position: relative; }
-  .acard:hover .acard-info-btn { opacity: 1; }
+  .acard:hover .acard-info-btn,
+  .cw-card:hover .acard-info-btn { opacity: 1; }
 
   .detail-drawer {
     position: fixed;
@@ -5155,6 +5156,7 @@
           </div>
         </div>
         <button class="auth-btn primary" onclick="saveProfileSettings()">Save Profile</button>
+        <button class="auth-btn" style="margin-top:0.5rem" onclick="hideAccountSettings(); goPage('stats')">View Stats</button>
       </div>
       
       <div class="settings-section">
@@ -5916,7 +5918,7 @@
         const epCount = a.eps || a.episodes || 12;
         curAnime.eps = epCount;
         goPage('watch');
-        CatimeFeatures.updateRoute('watch', a.id, 1);
+        CatimeFeatures.updateRoute('watch', a.id, 1, curDS);
         document.getElementById('watchTitle').textContent = a.title;
         document.getElementById('watchMeta').textContent = 'Loading episodes...';
         clearCountdown();
@@ -6451,7 +6453,7 @@
 
       function shareCurrentAnime() {
         if (!curAnime) return;
-        CatimeFeatures.shareAnime(curAnime.id, curEp);
+        CatimeFeatures.shareAnime(curAnime.id, curEp, curDS);
       }
 
       function saveWatchRating(val) {
@@ -6496,7 +6498,7 @@
 
       function loadPlayer(malId, epNum, epTitle, idx, total) {
         curEp = epNum;
-        CatimeFeatures.updateRoute('watch', malId, epNum);
+        CatimeFeatures.updateRoute('watch', malId, epNum, curDS);
         const watchTitleEl = document.getElementById('watchTitle');
         const watchMetaEl = document.getElementById('watchMeta');
         const playerBoxEl = document.getElementById('playerBox');
@@ -6604,6 +6606,7 @@
             scroll.innerHTML += `<div class="cw-card" onclick='resumeAnime(${JSON.stringify(obj).replace(/</g, '\\u003c').replace(/>/g, '\\u003e')}, ${item.ep})'>
              <div class="cw-thumb">
                <img src="${m.coverImage.large}">
+               <button type="button" class="acard-info-btn" title="Details" onclick="event.stopPropagation(); CatimeFeatures.openDetailDrawer(${m.id})">ⓘ</button>
                <div class="cw-rm" onclick="event.stopPropagation(); removeCW(${item.id})">×</div>
                <div class="thumb-ov"><div class="play-chip"><div class="play-tri"></div></div></div>
              </div>
@@ -7285,6 +7288,7 @@
       window.markLocalAppDataModified = markLocalAppDataModified;
       window.toast = toast;
       window.setSrc = setSrc;
+      window.setDS = setDS;
       window.watchAnime = watchAnime;
       window.goPage = goPage;
       window.refreshCwAndRecommendations = refreshCwAndRecommendations;

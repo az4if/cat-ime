@@ -4534,7 +4534,6 @@
         <button class="nl" onclick="goPage('search')">Search</button>
         <button class="nl" onclick="goPage('watch')">Watch</button>
         <button class="nl" onclick="goPage('list')">My List</button>
-        <button class="nl" onclick="goPage('stats')">Stats</button>
       </div>
       
       <!-- Mobile Menu Panel -->
@@ -4553,7 +4552,6 @@
           <button class="mobile-nl" onclick="goPage('search'); toggleMobileMenu()">Search</button>
           <button class="mobile-nl" onclick="goPage('watch'); toggleMobileMenu()">Watch</button>
           <button class="mobile-nl" onclick="goPage('list'); toggleMobileMenu()">My List</button>
-          <button class="mobile-nl" onclick="goPage('stats'); toggleMobileMenu()">Stats</button>
         </div>
       </div>
       
@@ -5192,7 +5190,7 @@
 </div>
 
 <footer class="footer">
-  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v3.1</footer>
+  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v3.2</footer>
   <!-- Ya i added a cat emoticon in the footer deal with it :P -->
 
     <script>
@@ -5505,7 +5503,7 @@
         document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
         document.querySelectorAll('.nl, .mobile-nl').forEach(n => n.classList.remove('active'));
         document.getElementById('page-' + id).classList.add('active');
-        const idx = { home: 0, search: 1, watch: 2, list: 3, stats: 4 };
+        const idx = { home: 0, search: 1, watch: 2, list: 3 };
         if (idx[id] !== undefined) {
           document.querySelectorAll('.nl')[idx[id]].classList.add('active');
           document.querySelectorAll('.mobile-nl')[idx[id]].classList.add('active');

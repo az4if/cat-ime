@@ -4026,6 +4026,28 @@
     color: #fca5a5;
   }
 
+  .welcome-ad-notice {
+    margin: 0 0 1rem;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    background: rgba(239, 68, 68, 0.08);
+    color: var(--text2);
+    font-size: 0.82rem;
+    line-height: 1.45;
+  }
+
+  .welcome-ad-notice strong {
+    color: #f87171;
+    display: block;
+    margin-bottom: 0.25rem;
+  }
+
+  .welcome-ad-notice a {
+    color: var(--accent);
+    font-weight: 600;
+  }
+
   .profile-section {
     display: flex;
     gap: 20px;
@@ -5069,6 +5091,12 @@
     </div>
     
     <div class="modal-body">
+      <div class="welcome-ad-notice">
+        <strong>⚠️ Use an ad blocker</strong>
+        Video embeds use third-party sources with tons of redirect ads. We recommend
+        <a href="https://chromewebstore.google.com/detail/ublock-origin-lite/ddkjiahejlhfcafbddmgiahcphecmpfh" target="_blank" rel="noopener noreferrer">uBlock Origin Lite</a>
+        (Chrome/Edge).
+      </div>
       <div id="authForm">
         <h3>Sign In</h3>
         <input type="email" id="loginEmail" placeholder="Email" class="auth-input">
@@ -5190,7 +5218,7 @@
 </div>
 
 <footer class="footer">
-  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v3.2</footer>
+  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v3.3</footer>
   <!-- Ya i added a cat emoticon in the footer deal with it :P -->
 
     <script>

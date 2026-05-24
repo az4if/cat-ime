@@ -8,6 +8,7 @@
 <link rel="apple-touch-icon" sizes="152x152" href="icons/icon%20152.jpg">
 <link rel="apple-touch-icon" sizes="180x180" href="icons/icon%20180.jpg">
 <link rel="apple-touch-icon" sizes="167x167" href="icons/icon%20167.jpg">
+<link rel="manifest" href="manifest.webmanifest">
 
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-X1PS2PGBBG"></script>
@@ -25,6 +26,7 @@
 <script src="js/catime-storage.js"></script>
 <script src="js/catime-api.js"></script>
 <script src="js/catime-ui.js"></script>
+<script src="js/catime-features.js"></script>
 <script>
   // Initialize Supabase
   let supabaseClient;
@@ -210,7 +212,7 @@
     });
 
     return {
-      version: 2,
+      version: 3,
       syncedAt: new Date().toISOString(),
       cw: parseLocalJSON('cw', []),
       followed,
@@ -233,7 +235,11 @@
         return prefs;
       })(),
       custom_theme: localStorage.getItem('custom_theme') || '',
-      lastReadNotif: localStorage.getItem('lastReadNotif') || ''
+      lastReadNotif: localStorage.getItem('lastReadNotif') || '',
+      ratings: localStorage.getItem('user_ratings') || '',
+      notes: localStorage.getItem('user_notes') || '',
+      watch_queue: localStorage.getItem('watch_queue') || '',
+      watch_days: localStorage.getItem('watch_days') || ''
     };
   }
 
@@ -357,6 +363,7 @@
 
   function isAppDataStorageKey(key) {
     return key === 'cw' || key === 'followed' || key === 'lastReadNotif' || key === 'custom_theme' ||
+      key === 'user_ratings' || key === 'user_notes' || key === 'watch_queue' || key === 'watch_days' ||
       key.startsWith('w_') || key.startsWith('stat_') || key.startsWith('pref_');
   }
 
@@ -410,6 +417,11 @@
       if (typeof appData.lastReadNotif === 'string' && appData.lastReadNotif) {
         localStorage.setItem('lastReadNotif', appData.lastReadNotif);
       }
+
+      if (typeof appData.ratings === 'string' && appData.ratings) localStorage.setItem('user_ratings', appData.ratings);
+      if (typeof appData.notes === 'string' && appData.notes) localStorage.setItem('user_notes', appData.notes);
+      if (typeof appData.watch_queue === 'string' && appData.watch_queue) localStorage.setItem('watch_queue', appData.watch_queue);
+      if (typeof appData.watch_days === 'string' && appData.watch_days) localStorage.setItem('watch_days', appData.watch_days);
 
       if (appData.syncedAt) {
         localStorage.setItem(APP_SYNC_TS_KEY, appData.syncedAt);
@@ -4339,6 +4351,169 @@
       font-size: 16px;
     }
   }
+
+  .acard-info-btn {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    z-index: 3;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(0,0,0,0.65);
+    color: #fff;
+    font-size: 0.72rem;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .acard-thumb { position: relative; }
+  .acard:hover .acard-info-btn { opacity: 1; }
+
+  .detail-drawer {
+    position: fixed;
+    inset: 0;
+    z-index: 9000;
+    background: rgba(0,0,0,0.55);
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 0;
+  }
+  .detail-drawer.open { display: flex; }
+  .detail-drawer-inner {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px 16px 0 0;
+    width: min(720px, 100%);
+    max-height: 88vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    position: relative;
+  }
+  .detail-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 3;
+    background: rgba(0,0,0,0.5);
+    border: none;
+    color: #fff;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 1.2rem;
+  }
+  .detail-hero {
+    height: 128px;
+    background-size: cover;
+    background-position: center top;
+    position: relative;
+  }
+  .detail-hero::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, var(--card) 100%);
+  }
+  .detail-body {
+    display: flex;
+    gap: 1rem;
+    padding: 0 1.25rem 1.5rem;
+    margin-top: -64px;
+    position: relative;
+    z-index: 1;
+    align-items: flex-start;
+  }
+  .detail-poster {
+    width: 102px;
+    aspect-ratio: 2 / 3;
+    height: auto;
+    object-fit: cover;
+    border-radius: 10px;
+    flex-shrink: 0;
+    display: block;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+    background: var(--bg3);
+  }
+  .detail-content {
+    flex: 1;
+    min-width: 0;
+    padding-top: 72px;
+  }
+  .detail-content h2 { font-family: 'Syne', sans-serif; font-size: 1.15rem; margin: 0 0 0.35rem; line-height: 1.25; }
+  .detail-meta, .detail-genres { font-size: 0.78rem; color: var(--text2); margin-bottom: 0.4rem; }
+  .detail-desc { font-size: 0.82rem; color: var(--text2); line-height: 1.55; margin: 0.5rem 0; }
+  .detail-actions { display: flex; flex-wrap: wrap; gap: 0.45rem; margin: 0.6rem 0; }
+  .detail-rate label { font-size: 0.72rem; color: var(--text3); margin-right: 0.4rem; }
+  .detail-rate select, .detail-note {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 0.35rem 0.5rem;
+    font-size: 0.78rem;
+    width: 100%;
+    margin-top: 0.35rem;
+  }
+  .detail-note { min-height: 56px; resize: vertical; font-family: inherit; }
+  .detail-loading { padding: 2rem; text-align: center; color: var(--text3); }
+
+  @media (max-width: 480px) {
+    .detail-body { margin-top: -48px; }
+    .detail-poster { width: 84px; }
+    .detail-content { padding-top: 56px; }
+    .detail-hero { height: 100px; }
+  }
+
+  .stats-wrap { max-width: 900px; margin: 0 auto; padding: 2rem 1.5rem; }
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.75rem; margin: 1.5rem 0; }
+  .stat-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1rem;
+    text-align: center;
+  }
+  .stat-card.accent { border-color: var(--accent); }
+  .stat-num { font-family: 'Syne', sans-serif; font-size: 1.6rem; font-weight: 800; color: var(--accent); }
+  .stat-lbl { font-size: 0.72rem; color: var(--text3); margin-top: 0.25rem; }
+  .stats-hint { font-size: 0.75rem; color: var(--text3); }
+
+  .bulk-row { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.5rem; }
+  .bulk-row button {
+    font-size: 0.68rem;
+    padding: 0.28rem 0.55rem;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    background: var(--bg3);
+    color: var(--text2);
+    cursor: pointer;
+  }
+  .bulk-row button:hover { border-color: var(--accent); color: var(--accent); }
+
+  .watch-extras { margin-top: 0.65rem; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+  .watch-extras select, .watch-extras textarea {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    font-size: 0.72rem;
+    padding: 0.3rem 0.45rem;
+  }
+  .watch-extras textarea { flex: 1; min-width: 160px; min-height: 32px; resize: none; font-family: inherit; }
+
+  .queue-list { display: flex; flex-direction: column; gap: 0.35rem; max-height: 180px; overflow-y: auto; }
+  .queue-item { display: flex; align-items: center; gap: 0.5rem; font-size: 0.78rem; background: var(--bg3); padding: 0.4rem 0.55rem; border-radius: 6px; }
+  .queue-num { color: var(--text3); min-width: 1rem; }
+  .queue-title { flex: 1; cursor: pointer; color: var(--text2); }
+  .queue-title:hover { color: var(--accent); }
+  .queue-rm { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 1rem; }
+  .queue-empty { font-size: 0.75rem; color: var(--text3); }
+
+  .random-btn.secondary { background: var(--bg3); color: var(--text2); margin-left: 0.35rem; }
 </style>
 
 <nav>
@@ -4358,6 +4533,7 @@
         <button class="nl" onclick="goPage('search')">Search</button>
         <button class="nl" onclick="goPage('watch')">Watch</button>
         <button class="nl" onclick="goPage('list')">My List</button>
+        <button class="nl" onclick="goPage('stats')">Stats</button>
       </div>
       
       <!-- Mobile Menu Panel -->
@@ -4376,6 +4552,7 @@
           <button class="mobile-nl" onclick="goPage('search'); toggleMobileMenu()">Search</button>
           <button class="mobile-nl" onclick="goPage('watch'); toggleMobileMenu()">Watch</button>
           <button class="mobile-nl" onclick="goPage('list'); toggleMobileMenu()">My List</button>
+          <button class="mobile-nl" onclick="goPage('stats'); toggleMobileMenu()">Stats</button>
         </div>
       </div>
       
@@ -4445,6 +4622,13 @@
     <span>Auto-next episode</span>
     <button class="db2" id="spAutoNext" onclick="toggleAutoNext()">Off</button>
   </div>
+  <div class="sp-row">
+    <span>Source failover hint</span>
+    <button class="db2" id="spAutoFailover" onclick="toggleAutoFailover()">On</button>
+  </div>
+
+  <div class="sp-sec">Watch Queue</div>
+  <div id="queueList" class="queue-list"></div>
 
   <div class="sp-sec">Theme</div>
   <div style="display:flex;align-items:center;gap:0.5rem">
@@ -4559,6 +4743,34 @@
       </button>
     </div>
     <div class="grid-feed-status" id="recStatus"></div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-hd"><span class="sec-title">Airing Now</span><span class="sec-lnk" onclick="CatimeFeatures.loadAiringThisWeek()">Refresh ↻</span></div>
+    <div class="horizontal-scroll-container">
+      <button class="scroll-nav-btn left" onclick="scrollSection('airingScroll', -300)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      </button>
+      <div class="horizontal-scroll" id="airingScroll"></div>
+      <button class="scroll-nav-btn right" onclick="scrollSection('airingScroll', 300)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+      </button>
+    </div>
+    <div class="grid-feed-status" id="airingStatus"></div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-hd"><span class="sec-title" id="seasonalTitle">This Season</span><span class="sec-lnk" onclick="CatimeFeatures.loadSeasonalHub()">Refresh ↻</span></div>
+    <div class="horizontal-scroll-container">
+      <button class="scroll-nav-btn left" onclick="scrollSection('seasonalScroll', -300)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      </button>
+      <div class="horizontal-scroll" id="seasonalScroll"></div>
+      <button class="scroll-nav-btn right" onclick="scrollSection('seasonalScroll', 300)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+      </button>
+    </div>
+    <div class="grid-feed-status" id="seasonalStatus"></div>
   </div>
   
   <div class="sec">
@@ -4719,6 +4931,7 @@
         <option value="">All Years</option>
       </select>
       <button class="random-btn" onclick="pickRandomAnime()">🎲 Random</button>
+      <button class="random-btn secondary" onclick="CatimeFeatures.pickRandomFromList()">📋 From List</button>
     </div>
     <div class="res-info" id="resInfo">Showing all anime</div>
     <div class="grid" id="searchGrid"></div>
@@ -4750,7 +4963,23 @@
           <div class="dst"><button class="db2" id="srcAnimepahe" onclick="setSrc('animepahe')">AnimePahe</button></div>
           <button class="mkb" id="btnW" onclick="toggleMk('btnW')">✓ Watched</button>
           <button class="mkb" id="btnFollow" onclick="toggleFollow()">🔔 Follow</button>
+          <button class="mkb" id="btnQueue" onclick="addCurrentToQueue()">+ Queue</button>
+          <button class="mkb" onclick="shareCurrentAnime()">🔗 Share</button>
           <button class="mkb" id="btnAutoNext" onclick="toggleAutoNext()" title="Auto Next Episode">⏭ Auto Next</button>
+        </div>
+        <div class="bulk-row">
+          <button onclick="CatimeFeatures.bulkMarkWatched('toCurrent')">Mark up to here ✓</button>
+          <button onclick="CatimeFeatures.bulkMarkWatched('all')">Mark all ✓</button>
+          <button onclick="CatimeFeatures.bulkMarkWatched('clear')">Clear progress</button>
+        </div>
+        <div class="watch-extras">
+          <select id="watchRateSelect" onchange="saveWatchRating(this.value)" title="Your rating">
+            <option value="">Rate</option>
+            <option value="10">10</option><option value="9">9</option><option value="8">8</option><option value="7">7</option>
+            <option value="6">6</option><option value="5">5</option><option value="4">4</option><option value="3">3</option>
+            <option value="2">2</option><option value="1">1</option>
+          </select>
+          <textarea id="watchNoteInput" placeholder="Quick note..." maxlength="500" onblur="saveWatchNote(this.value)"></textarea>
         </div>
         <div id="epCountdown" style="display:none;margin-top:0.6rem;font-size:0.78rem;color:var(--accent);font-weight:500;letter-spacing:0.01em"></div>
       </div>
@@ -4815,11 +5044,20 @@
           <th>Status</th>
           <th>Progress</th>
           <th>Score</th>
+          <th>Yours</th>
           <th></th>
         </tr>
       </thead>
       <tbody></tbody>
     </table>
+  </div>
+</div>
+
+<!-- STATS -->
+<div class="page" id="page-stats">
+  <div class="stats-wrap">
+    <div class="list-hd"><span class="list-hd-t">Your Stats</span></div>
+    <div id="statsContent"></div>
   </div>
 </div>
 
@@ -4944,8 +5182,15 @@
 
 <div id="toast"></div>
 
+<div class="detail-drawer" id="detailDrawer" onclick="if(event.target===this)CatimeFeatures.closeDetailDrawer()">
+  <div class="detail-drawer-inner">
+    <button class="detail-close" onclick="CatimeFeatures.closeDetailDrawer()">×</button>
+    <div id="detailDrawerBody"></div>
+  </div>
+</div>
+
 <footer class="footer">
-  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v3.0</footer>
+  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v3.1</footer>
   <!-- Ya i added a cat emoticon in the footer deal with it :P -->
 
     <script>
@@ -5209,7 +5454,8 @@
 
             // Check for required keys to ensure it's a valid backup
             const hasValidKeys = Object.keys(data).some(key =>
-              key.startsWith('cw') || key.startsWith('w_') || key.startsWith('followed') || key.startsWith('stat_') || key.startsWith('pref_')
+              key.startsWith('cw') || key.startsWith('w_') || key.startsWith('followed') || key.startsWith('stat_') || key.startsWith('pref_') ||
+              key === 'user_ratings' || key === 'user_notes' || key === 'watch_queue' || key === 'watch_days'
             );
 
             if (!hasValidKeys && Object.keys(data).length > 0) {
@@ -5245,6 +5491,7 @@
       let countdownTimer = null;
       let pausedSrc = null;
       function goPage(id) {
+        CatimeFeatures.closeDetailDrawer();
         const iframe = document.querySelector('#playerBox iframe');
         if (id !== 'watch' && iframe) {
           pausedSrc = iframe.src;
@@ -5256,7 +5503,7 @@
         document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
         document.querySelectorAll('.nl, .mobile-nl').forEach(n => n.classList.remove('active'));
         document.getElementById('page-' + id).classList.add('active');
-        const idx = { home: 0, search: 1, watch: 2, list: 3 };
+        const idx = { home: 0, search: 1, watch: 2, list: 3, stats: 4 };
         if (idx[id] !== undefined) {
           document.querySelectorAll('.nl')[idx[id]].classList.add('active');
           document.querySelectorAll('.mobile-nl')[idx[id]].classList.add('active');
@@ -5264,8 +5511,13 @@
 
         if (id !== 'watch') {
           clearCountdown();
+          if (id !== 'watch') CatimeFeatures.updateRoute(id === 'home' ? null : id);
         }
-        if (id === 'home') refreshCwAndRecommendations();
+        if (id === 'home') {
+          refreshCwAndRecommendations();
+          CatimeFeatures.loadAiringThisWeek();
+          CatimeFeatures.loadSeasonalHub();
+        }
         if (id === 'search') {
           if (!document.getElementById('searchGrid').children.length) {
             doSearch(document.getElementById('searchInput').value || '', true);
@@ -5277,6 +5529,7 @@
           loadMyList();
           loadUpcomingCalendar();
         }
+        if (id === 'stats') CatimeFeatures.loadStatsPage();
       }
 
       function toast(msg) {
@@ -5663,6 +5916,7 @@
         const epCount = a.eps || a.episodes || 12;
         curAnime.eps = epCount;
         goPage('watch');
+        CatimeFeatures.updateRoute('watch', a.id, 1);
         document.getElementById('watchTitle').textContent = a.title;
         document.getElementById('watchMeta').textContent = 'Loading episodes...';
         clearCountdown();
@@ -5673,6 +5927,7 @@
         fetchAiringInfo(a.id);
         fetchEpisodeTitles(a.id, a, epCount);
         fetchSimilarAnime(a.id);
+        CatimeFeatures.syncWatchPageExtras();
       }
 
       async function fetchEpisodeTitles(id, a, epCount) {
@@ -5990,14 +6245,16 @@
           const msg = prefs.status === 'all'
             ? 'No anime in your list. Start following some!'
             : 'No anime match this filter.';
-          tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--text3)">${msg}</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text3)">${msg}</td></tr>`;
           return;
         }
 
+        const ratings = CatimeFeatures.getRatings();
         tbody.innerHTML = rows.map(row => {
           const opts = statuses.map(s => `<option value="${s.cls}" ${row.status === s.cls ? 'selected' : ''}>${s.label}</option>`).join('');
           const objJson = JSON.stringify(row.obj).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
-          return `<tr><td class="tn" onclick='watchAnime(${objJson})'>${row.title}</td><td><select class="sb2 ${row.status}" onchange="changeStat(${row.id}, this)" style="border:none;outline:none;cursor:pointer">${opts}</select></td><td style="color:var(--text2)">${row.watchedCount}/${row.totalEps}</td><td style="color:var(--yellow)">★ ${row.scoreStr}</td><td><button class="lb" onclick="toggleFollowFor(${row.id}, this)">Unfollow</button></td></tr>`;
+          const userRate = ratings[row.id] ? ratings[row.id] + '/10' : '—';
+          return `<tr><td class="tn" onclick='watchAnime(${objJson})'>${row.title}</td><td><select class="sb2 ${row.status}" onchange="changeStat(${row.id}, this)" style="border:none;outline:none;cursor:pointer">${opts}</select></td><td style="color:var(--text2)">${row.watchedCount}/${row.totalEps}</td><td style="color:var(--yellow)">★ ${row.scoreStr}</td><td style="color:var(--accent)">${userRate}</td><td><button class="lb" onclick="toggleFollowFor(${row.id}, this)">Unfollow</button></td></tr>`;
         }).join('');
       }
 
@@ -6020,7 +6277,7 @@
         if (!tbody) return;
         if (!f.length) {
           myListCache = [];
-          tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text3)">No anime in your list. Start following some!</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text3)">No anime in your list. Start following some!</td></tr>';
           return;
         }
 
@@ -6120,6 +6377,7 @@
       }
 
       function buildEpList(a, epCount, epTitles = []) {
+        window._lastEpTitles = epTitles;
         const list = document.getElementById('epList');
         if (!list) return;
         list.innerHTML = '';
@@ -6170,10 +6428,52 @@
       function goNextEpisode() {
         if (!curAnime) return;
         const total = curAnime.eps || 1;
-        if (curEp >= total) { toast('No next episode'); return; }
+        if (curEp >= total) {
+          if (CatimeFeatures.playNextInQueue()) return;
+          toast('No next episode');
+          return;
+        }
         const nextEp = curEp + 1;
         const epItems = document.querySelectorAll('.epi');
         if (epItems[nextEp - 1]) epItems[nextEp - 1].click();
+      }
+
+      function goPrevEpisode() {
+        if (!curAnime || curEp <= 1) { toast('No previous episode'); return; }
+        const epItems = document.querySelectorAll('.epi');
+        if (epItems[curEp - 2]) epItems[curEp - 2].click();
+      }
+
+      function addCurrentToQueue() {
+        if (!curAnime) return;
+        CatimeFeatures.addToQueue(curAnime);
+      }
+
+      function shareCurrentAnime() {
+        if (!curAnime) return;
+        CatimeFeatures.shareAnime(curAnime.id, curEp);
+      }
+
+      function saveWatchRating(val) {
+        if (!curAnime) return;
+        CatimeFeatures.saveDetailRating(curAnime.id, val);
+      }
+
+      function saveWatchNote(val) {
+        if (!curAnime) return;
+        CatimeFeatures.saveDetailNote(curAnime.id, val);
+      }
+
+      function toggleAutoFailover() {
+        const on = localStorage.getItem('pref_autofailover') !== 'false';
+        localStorage.setItem('pref_autofailover', on ? 'false' : 'true');
+        const b = document.getElementById('spAutoFailover');
+        if (b) { b.classList.toggle('on', !on); b.textContent = !on ? 'On' : 'Off'; }
+        toast(!on ? 'Failover hints on' : 'Failover hints off');
+      }
+
+      function toggleDSShortcut() {
+        setDS(curDS === 'sub' ? 'dub' : 'sub');
       }
 
       window.addEventListener('message', (e) => {
@@ -6196,6 +6496,7 @@
 
       function loadPlayer(malId, epNum, epTitle, idx, total) {
         curEp = epNum;
+        CatimeFeatures.updateRoute('watch', malId, epNum);
         const watchTitleEl = document.getElementById('watchTitle');
         const watchMetaEl = document.getElementById('watchMeta');
         const playerBoxEl = document.getElementById('playerBox');
@@ -6227,6 +6528,7 @@
         if (playerBoxEl) {
           playerBoxEl.innerHTML = `<iframe src="${url}" allowfullscreen allow="autoplay; fullscreen; encrypted-media" referrerpolicy="no-referrer-when-downgrade" style="width:100%;height:100%;border:none" title="${sanitizeHTML(epTitle)}"></iframe>`;
         }
+        CatimeFeatures.onPlayerLoad();
         markWatched(malId, epNum);
 
         const epsList = document.getElementById('epList');
@@ -6469,6 +6771,8 @@
           document.getElementById('npPanel').classList.remove('open');
         if (!e.target.closest('#spPanel') && !e.target.closest('[onclick="toggleSP()"]'))
           document.getElementById('spPanel').classList.remove('open');
+        if (!e.target.closest('.detail-drawer-inner') && !e.target.closest('.acard-info-btn'))
+          CatimeFeatures.closeDetailDrawer();
       });
 
       let slidingHero = [];
@@ -6962,14 +7266,44 @@
       CatimeUI.initKeyboardShortcuts({
         goPage,
         goNextEpisode,
+        goPrevEpisode,
+        toggleDS: toggleDSShortcut,
+        rotateSource: () => CatimeFeatures.rotateSource(),
+        closeDetailDrawer: () => CatimeFeatures.closeDetailDrawer(),
         toggleNP,
         toggleSP,
         hideAccountSettings: window.hideAccountSettings,
         hideAccountModal: window.hideAccountModal
       });
 
+      window.makeCard = CatimeFeatures.enhanceMakeCard(makeCard);
+      makeCard = window.makeCard;
+      window.fetchAnilistPage = fetchAnilistPage;
+      window.sanitizeHTML = sanitizeHTML;
+      window.buildEpList = buildEpList;
+      window.loadMyList = loadMyList;
+      window.markLocalAppDataModified = markLocalAppDataModified;
+      window.toast = toast;
+      window.setSrc = setSrc;
+      window.watchAnime = watchAnime;
+      window.goPage = goPage;
+      window.refreshCwAndRecommendations = refreshCwAndRecommendations;
+      Object.defineProperty(window, 'curAnime', { get() { return curAnime; }, configurable: true });
+      Object.defineProperty(window, 'curEp', { get() { return curEp; }, configurable: true });
+
+      CatimeFeatures.init();
+
+      const spAF = document.getElementById('spAutoFailover');
+      if (spAF) {
+        const afOn = localStorage.getItem('pref_autofailover') !== 'false';
+        spAF.classList.toggle('on', afOn);
+        spAF.textContent = afOn ? 'On' : 'Off';
+      }
+
       // load home page sections
       refreshCwAndRecommendations();
+      CatimeFeatures.loadAiringThisWeek();
+      CatimeFeatures.loadSeasonalHub();
       loadTrending();
       loadTopRated();
       loadMostPopular();

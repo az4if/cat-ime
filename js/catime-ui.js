@@ -63,6 +63,7 @@
       }
 
       if (e.key === 'Escape') {
+        if (h.closeDetailDrawer) h.closeDetailDrawer();
         if (h.hideAccountSettings) h.hideAccountSettings();
         if (h.hideAccountModal) h.hideAccountModal();
         document.getElementById('npPanel')?.classList.remove('open');
@@ -71,11 +72,32 @@
         return;
       }
 
-      if ((e.key === 'n' || e.key === 'N') && !e.metaKey && !e.ctrlKey && !e.altKey) {
-        const watchPage = document.getElementById('page-watch');
-        if (watchPage?.classList.contains('active') && h.goNextEpisode) {
+      const watchActive = document.getElementById('page-watch')?.classList.contains('active');
+      if (watchActive && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        if ((e.key === 'n' || e.key === 'N') && h.goNextEpisode) {
           e.preventDefault();
           h.goNextEpisode();
+          return;
+        }
+        if ((e.key === 'j' || e.key === 'J') && h.goPrevEpisode) {
+          e.preventDefault();
+          h.goPrevEpisode();
+          return;
+        }
+        if ((e.key === 'k' || e.key === 'K') && h.goNextEpisode) {
+          e.preventDefault();
+          h.goNextEpisode();
+          return;
+        }
+        if ((e.key === 's' || e.key === 'S') && h.toggleDS) {
+          e.preventDefault();
+          h.toggleDS();
+          return;
+        }
+        if ((e.key === 'r' || e.key === 'R') && h.rotateSource) {
+          e.preventDefault();
+          h.rotateSource();
+          return;
         }
       }
     });

@@ -406,21 +406,12 @@
     const page = params.get('page');
     const animeId = params.get('anime');
     const ep = Math.max(1, parseInt(params.get('ep') || '1', 10) || 1);
-    const audio = params.get('audio');
+    const audioParam = params.get('audio');
+    const audio = audioParam === 'sub' || audioParam === 'dub' ? audioParam : undefined;
     if (page && page !== 'home' && typeof global.goPage === 'function') global.goPage(page);
     if (animeId && typeof global.watchAnime === 'function') {
       const m = await fetchMediaById(animeId);
-      if (m) {
-        const card = mediaToCard(m);
-        global.watchAnime(card);
-        if ((audio === 'sub' || audio === 'dub') && typeof global.setDS === 'function') {
-          global.setDS(audio);
-        }
-        setTimeout(() => {
-          const eps = document.querySelectorAll('.epi');
-          if (eps[ep - 1]) eps[ep - 1].click();
-        }, 600);
-      }
+      if (m) global.watchAnime(mediaToCard(m), { ep, audio });
     }
   }
 

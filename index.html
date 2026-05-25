@@ -45,7 +45,6 @@
     console.log('Supabase client initialized successfully');
   } catch (err) {
     console.error('Failed to initialize Supabase:', err);
-    alert('Authentication system failed to load. Please check console for details.');
   }
   
   // Account system
@@ -418,10 +417,10 @@
         localStorage.setItem('lastReadNotif', appData.lastReadNotif);
       }
 
-      if (typeof appData.ratings === 'string' && appData.ratings) localStorage.setItem('user_ratings', appData.ratings);
-      if (typeof appData.notes === 'string' && appData.notes) localStorage.setItem('user_notes', appData.notes);
-      if (typeof appData.watch_queue === 'string' && appData.watch_queue) localStorage.setItem('watch_queue', appData.watch_queue);
-      if (typeof appData.watch_days === 'string' && appData.watch_days) localStorage.setItem('watch_days', appData.watch_days);
+      if (typeof appData.ratings === 'string') localStorage.setItem('user_ratings', appData.ratings);
+      if (typeof appData.notes === 'string') localStorage.setItem('user_notes', appData.notes);
+      if (typeof appData.watch_queue === 'string') localStorage.setItem('watch_queue', appData.watch_queue);
+      if (typeof appData.watch_days === 'string') localStorage.setItem('watch_days', appData.watch_days);
 
       if (appData.syncedAt) {
         localStorage.setItem(APP_SYNC_TS_KEY, appData.syncedAt);
@@ -2858,6 +2857,12 @@
     text-decoration: underline;
   }
 
+  .footer-suggest {
+    display: block;
+    margin-bottom: 0.65rem;
+    color: var(--text2);
+  }
+
   /* ── VISUAL ENHANCEMENTS ── */
 
   /* Smooth page enter animation */
@@ -4728,15 +4733,13 @@
     <div class="hero-inner">
       <div class="hero-tag">✨ Welcome to Cat-ime</div>
       <div class="htitle">Your Cat-themed<br>Anime Hub</div>
-      <div class="hsub">Your one-stop destination for all things anime. Discover, watch, and track your favorite
-        series with ease, all from your browser :)
-      </div>
-      <div class="hbtns">
-        <button class="btn-p" onclick="goPage('search')">🔍 Browse Anime</button>
+      <div class="hsub">Your one-stop destination for watching english subs and dubs of your favorite anime!
       </div>
     </div>
   </div>
-  
+  <div class="hbtns">
+    <button class="btn-p" onclick="goPage('search')">🔍 Browse Anime</button>
+  </div>
   <div class="sec">
     <div class="sec-hd"><span class="sec-title">Continue Watching</span><span class="sec-lnk"
         onclick="goPage('list')">View All →</span></div>
@@ -4982,7 +4985,7 @@
           -->
           <div class="dst"><button class="db2" id="srcVidnest" onclick="setSrc('vidnest')">Vidnest</button></div>
           <div class="dst"><button class="db2" id="srcAnimepahe" onclick="setSrc('animepahe')">AnimePahe</button></div>
-          <button class="mkb" id="btnW" onclick="toggleMk('btnW')">✓ Watched</button>
+          <button class="mkb" id="btnW" onclick="toggleWatchedCurrentEp()">✓ Watched</button>
           <button class="mkb" id="btnFollow" onclick="toggleFollow()">🔔 Follow</button>
           <button class="mkb" id="btnQueue" onclick="addCurrentToQueue()">+ Queue</button>
           <button class="mkb" onclick="shareCurrentAnime()">🔗 Share</button>
@@ -5218,7 +5221,8 @@
 </div>
 
 <footer class="footer">
-  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v3.3</footer>
+  <span class="footer-suggest">Have suggestions? Email <a href="mailto:thecatime@gmail.com">thecatime@gmail.com</a></span>
+  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v3.4</footer>
   <!-- Ya i added a cat emoticon in the footer deal with it :P -->
 
     <script>
@@ -5539,7 +5543,7 @@
 
         if (id !== 'watch') {
           clearCountdown();
-          if (id !== 'watch') CatimeFeatures.updateRoute(id === 'home' ? null : id);
+          CatimeFeatures.updateRoute(id === 'home' ? null : id);
         }
         if (id === 'home') {
           refreshCwAndRecommendations();
@@ -5939,23 +5943,33 @@
         watchAnime(randomAnime);
       }
 
-      function watchAnime(a) {
-        curAnime = a; curEp = 1;
+      function watchAnime(a, opts = {}) {
+        curAnime = a;
+        const startEp = Math.max(1, Number(opts.ep) || 1);
+        curEp = startEp;
         const epCount = a.eps || a.episodes || 12;
         curAnime.eps = epCount;
+
+        if (opts.audio === 'sub' || opts.audio === 'dub') {
+          curDS = opts.audio;
+          localStorage.setItem('pref_ds', curDS);
+          syncDSButtons();
+        }
+
         goPage('watch');
-        CatimeFeatures.updateRoute('watch', a.id, 1, curDS);
+        CatimeFeatures.updateRoute('watch', a.id, startEp, curDS);
         document.getElementById('watchTitle').textContent = a.title;
         document.getElementById('watchMeta').textContent = 'Loading episodes...';
         clearCountdown();
         buildEpList(a, epCount, []);
-        loadPlayer(a.id, 1, 'Episode 1', 1, epCount);
+        loadPlayer(startEp, `Episode ${startEp}`, startEp, epCount);
         updateFollowBtn();
         fetchSeasons(a.id);
         fetchAiringInfo(a.id);
         fetchEpisodeTitles(a.id, a, epCount);
         fetchSimilarAnime(a.id);
         CatimeFeatures.syncWatchPageExtras();
+        syncWatchedBtn();
       }
 
       async function fetchEpisodeTitles(id, a, epCount) {
@@ -6427,7 +6441,7 @@
           item.onclick = () => {
             document.querySelectorAll('.epi').forEach(e => e.classList.remove('cur'));
             item.classList.add('cur');
-            loadPlayer(a.id, epN, epLabelRaw, epN, total);
+            loadPlayer(epN, epLabelRaw, epN, total);
           };
           list.appendChild(item);
         }
@@ -6522,48 +6536,40 @@
         if (isEnded) goNextEpisode();
       });
 
-      function loadPlayer(malId, epNum, epTitle, idx, total) {
+      function loadPlayer(epNum, epTitle, idx, total) {
+        if (!curAnime) return;
+        const storageId = curAnime.id;
+        const streamId = curAnime.malId || curAnime.idMal || storageId;
         curEp = epNum;
-        CatimeFeatures.updateRoute('watch', malId, epNum, curDS);
+        CatimeFeatures.updateRoute('watch', storageId, epNum, curDS);
         const watchTitleEl = document.getElementById('watchTitle');
         const watchMetaEl = document.getElementById('watchMeta');
         const playerBoxEl = document.getElementById('playerBox');
 
-        if (watchTitleEl) watchTitleEl.textContent = curAnime ? curAnime.title : 'Anime';
+        if (watchTitleEl) watchTitleEl.textContent = curAnime.title;
         if (watchMetaEl) watchMetaEl.textContent = `Episode ${idx} of ${total} · ${curDS.toUpperCase()}`;
 
         let url;
-        // Temporarily disabled - sources are down
-        /*
-        if (curSource === 'animepahe') {
-          url = `https://vidnest.fun/animepahe/${malId}/${epNum}/${curDS}`;
-          // AnimePahe uses VidNest's animepahe endpoint
-        } else if (curSource === 'vidnest') {
-          url = `https://vidnest.fun/anime/${malId}/${epNum}/${curDS}`;
-          // Vidnest doesn't support color theming like Videasy, so we'll just have to deal with their default player UI :(
-        } else {
-          const accentHex = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim().replace('#', '');
-          url = `https://player.videasy.net/anime/${malId}/${epNum}?color=${accentHex}`;
-        }
-        */
         if (curSource === 'vidnest') {
-          url = `https://vidnest.fun/anime/${malId}/${epNum}/${curDS}`;
+          url = `https://vidnest.fun/anime/${streamId}/${epNum}/${curDS}`;
         } else {
-          // Force animepahe for now
-          url = `https://vidnest.fun/animepahe/${malId}/${epNum}/${curDS}`;
+          url = `https://vidnest.fun/animepahe/${streamId}/${epNum}/${curDS}`;
         }
 
         if (playerBoxEl) {
           playerBoxEl.innerHTML = `<iframe src="${url}" allowfullscreen allow="autoplay; fullscreen; encrypted-media" referrerpolicy="no-referrer-when-downgrade" style="width:100%;height:100%;border:none" title="${sanitizeHTML(epTitle)}"></iframe>`;
         }
         CatimeFeatures.onPlayerLoad();
-        markWatched(malId, epNum);
+        markWatched(storageId, epNum);
+        syncWatchedBtn();
 
         const epsList = document.getElementById('epList');
         if (epsList && epsList.children[idx - 1]) {
-          epsList.children[idx - 1].classList.add('done', 'cur');
-          if (!epsList.children[idx - 1].querySelector('.etick')) {
-            epsList.children[idx - 1].innerHTML += `<div class="etick">✓</div>`;
+          document.querySelectorAll('.epi').forEach((e) => e.classList.remove('cur'));
+          const item = epsList.children[idx - 1];
+          item.classList.add('done', 'cur');
+          if (!item.querySelector('.etick')) {
+            item.innerHTML += `<div class="etick">✓</div>`;
           }
         }
       }
@@ -6577,7 +6583,8 @@
         ep = Number(ep);
         const k = 'w_' + id;
         const s = new Set(JSON.parse(localStorage.getItem(k) || '[]'));
-        s.add(ep); localStorage.setItem(k, JSON.stringify([...s]));
+        s.add(ep);
+        localStorage.setItem(k, JSON.stringify([...s].sort((a, b) => a - b)));
 
         const totalEps = curAnime?.id === id ? (curAnime.eps || 0) : 0;
         if (totalEps > 0 && s.size >= totalEps) {
@@ -6585,6 +6592,54 @@
         }
 
         CatimeStorage.updateContinueWatching(id, ep);
+      }
+
+      function unmarkWatched(id, ep) {
+        ep = Number(ep);
+        const k = 'w_' + id;
+        const s = new Set(JSON.parse(localStorage.getItem(k) || '[]'));
+        s.delete(ep);
+        localStorage.setItem(k, JSON.stringify([...s].sort((a, b) => a - b)));
+        if (localStorage.getItem('stat_' + id) === 'sc') {
+          localStorage.setItem('stat_' + id, 'sw');
+        }
+        if (typeof markLocalAppDataModified === 'function') markLocalAppDataModified();
+      }
+
+      function syncWatchedBtn() {
+        const btn = document.getElementById('btnW');
+        if (!btn || !curAnime) return;
+        const watched = new Set(JSON.parse(localStorage.getItem('w_' + curAnime.id) || '[]'));
+        btn.classList.toggle('on', watched.has(curEp));
+      }
+
+      function toggleWatchedCurrentEp() {
+        if (!curAnime) return;
+        const id = curAnime.id;
+        const watched = new Set(JSON.parse(localStorage.getItem('w_' + id) || '[]'));
+        if (watched.has(curEp)) {
+          unmarkWatched(id, curEp);
+          toast('Episode unmarked');
+        } else {
+          markWatched(id, curEp);
+          toast('Episode marked watched');
+        }
+        syncWatchedBtn();
+        const epItem = document.getElementById('epList')?.children[curEp - 1];
+        if (epItem) {
+          const isWatched = new Set(JSON.parse(localStorage.getItem('w_' + id) || '[]')).has(curEp);
+          epItem.classList.toggle('done', isWatched);
+          const tick = epItem.querySelector('.etick');
+          if (isWatched && !tick) epItem.innerHTML += `<div class="etick">✓</div>`;
+          else if (!isWatched && tick) tick.remove();
+        }
+      }
+
+      function syncDSButtons() {
+        document.getElementById('dsSub')?.classList.toggle('on', curDS === 'sub');
+        document.getElementById('dsDub')?.classList.toggle('on', curDS === 'dub');
+        document.getElementById('spDsSub')?.classList.toggle('on', curDS === 'sub');
+        document.getElementById('spDsDub')?.classList.toggle('on', curDS === 'dub');
       }
 
       let recLoadGen = 0;
@@ -6730,11 +6785,7 @@
       }
 
       function resumeAnime(a, ep) {
-        watchAnime(a);
-        setTimeout(() => {
-          const eps = document.querySelectorAll('.epi');
-          if (eps[ep - 1]) eps[ep - 1].click();
-        }, 50);
+        watchAnime(a, { ep: Number(ep) || 1 });
       }
 
       function changeStat(id, sel) {
@@ -6749,32 +6800,20 @@
       function setDS(t) {
         curDS = t;
         localStorage.setItem('pref_ds', t);
-        document.getElementById('dsSub').classList.toggle('on', t === 'sub');
-        document.getElementById('dsDub').classList.toggle('on', t === 'dub');
-        document.getElementById('spDsSub').classList.toggle('on', t === 'sub');
-        document.getElementById('spDsDub').classList.toggle('on', t === 'dub');
-        if (curAnime) loadPlayer(curAnime.id, curEp, 'Episode ' + curEp, curEp, curAnime.eps);
+        syncDSButtons();
+        if (curAnime) loadPlayer(curEp, 'Episode ' + curEp, curEp, curAnime.eps);
       }
 
       function setSrc(s) {
         curSource = s;
         localStorage.setItem('pref_source', s);
-        // Temporarily disabled - sources are down
-        /*
-        document.getElementById('srcVideasy').classList.toggle('on', s === 'videasy');
-        document.getElementById('srcAnimepahe').classList.toggle('on', s === 'animepahe');
-        document.getElementById('spSrcVideasy').classList.toggle('on', s === 'videasy');
-        document.getElementById('spSrcAnimepahe').classList.toggle('on', s === 'animepahe');
-        */
         document.getElementById('srcVidnest').classList.toggle('on', s === 'vidnest');
         document.getElementById('spSrcVidnest').classList.toggle('on', s === 'vidnest');
         document.getElementById('srcAnimepahe').classList.toggle('on', s === 'animepahe');
         document.getElementById('spSrcAnimepahe').classList.toggle('on', s === 'animepahe');
-        if (curAnime) loadPlayer(curAnime.id, curEp, 'Episode ' + curEp, curEp, curAnime.eps);
+        if (curAnime) loadPlayer(curEp, 'Episode ' + curEp, curEp, curAnime.eps);
       }
 
-
-      function toggleMk(id) { document.getElementById(id).classList.toggle('on') }
 
       const statuses = [
         { cls: 'sw', label: '● Watching' },

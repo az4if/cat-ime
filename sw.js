@@ -1,5 +1,9 @@
-const CACHE = 'catime-v1';
+const CACHE = 'catime-v3';
 const ASSETS = ['./', './index.html', './js/catime-api.js', './js/catime-storage.js', './js/catime-ui.js', './js/catime-features.js'];
+
+function isHtmlRequest(url) {
+  return url.pathname === '/' || url.pathname.endsWith('/') || url.pathname.endsWith('.html');
+}
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
@@ -15,13 +19,32 @@ self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
   const url = new URL(e.request.url);
   if (url.origin !== self.location.origin) return;
+
+  if (isHtmlRequest(url)) {
+    e.respondWith(
+      fetch(e.request)
+        .then((res) => {
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(e.request, copy));
+          }
+          return res;
+        })
+        .catch(() => caches.match(e.request))
+    );
+    return;
+  }
+
   e.respondWith(
-    caches.match(e.request).then((cached) => cached || fetch(e.request).then((res) => {
-      if (res.ok && (url.pathname.endsWith('.js') || url.pathname.endsWith('.html') || url.pathname === '/')) {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(e.request, copy));
-      }
-      return res;
-    }).catch(() => cached))
+    caches.match(e.request).then((cached) =>
+      cached ||
+      fetch(e.request).then((res) => {
+        if (res.ok && (url.pathname.endsWith('.js') || url.pathname.endsWith('.webmanifest'))) {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(e.request, copy));
+        }
+        return res;
+      }).catch(() => cached)
+    )
   );
 });

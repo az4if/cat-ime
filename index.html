@@ -1668,10 +1668,16 @@
   }
 
   .hero {
+    --hero-height: 300px;
     background: var(--hero-bg);
     padding: 2.5rem 1.5rem 2.2rem;
     position: relative;
-    overflow: hidden
+    overflow: hidden;
+    box-sizing: border-box;
+    min-height: var(--hero-height);
+    height: var(--hero-height);
+    display: flex;
+    align-items: center
   }
 
   .hero::after {
@@ -1695,6 +1701,48 @@
     pointer-events: none
   }
 
+  .hero-nav {
+    position: absolute;
+    right: 1.25rem;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 2;
+    display: flex;
+    gap: 0.45rem;
+    pointer-events: none
+  }
+
+  .hero-nav[hidden] {
+    display: none
+  }
+
+  .hero-nav-btn {
+    pointer-events: auto;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: rgba(var(--bg2-rgb, 26, 37, 48), 0.88);
+    border: 1px solid var(--border);
+    color: var(--text);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+    backdrop-filter: blur(8px)
+  }
+
+  .hero-nav-btn:hover {
+    background: var(--accent);
+    border-color: var(--accent);
+    transform: scale(1.08)
+  }
+
+  .hero-nav-btn svg {
+    width: 18px;
+    height: 18px
+  }
+
   .hero-slide {
     position: absolute;
     inset: 0;
@@ -1706,13 +1754,30 @@
   }
 
   .hero-slide.active {
-    opacity: 1
+    opacity: 1;
+    pointer-events: auto;
+    cursor: pointer
   }
 
   .hero-inner {
     position: relative;
     z-index: 1;
-    max-width: 520px
+    max-width: 520px;
+    width: 100%;
+    flex: 0 1 auto
+  }
+
+  .hero-inner.hero-clickable {
+    cursor: pointer
+  }
+
+  .hero-inner.hero-clickable .htitle {
+    transition: color 0.15s ease
+  }
+
+  .hero-inner.hero-clickable:hover .htitle,
+  .hero-inner.hero-clickable:focus-visible .htitle {
+    color: var(--accent)
   }
 
   .hero-tag {
@@ -1731,12 +1796,23 @@
     letter-spacing: 0.05em
   }
 
+  .hero-tag-cat {
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 700
+  }
+
   .htitle {
     font-family: 'Syne', sans-serif;
     font-size: 2.3rem;
     font-weight: 800;
     line-height: 1.05;
-    margin-bottom: 0.55rem
+    margin-bottom: 0.55rem;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    min-height: calc(2.3rem * 1.05 * 2)
   }
 
   .hsub {
@@ -1744,12 +1820,24 @@
     font-size: 0.88rem;
     line-height: 1.6;
     margin-bottom: 1.1rem;
-    max-width: 390px
+    max-width: 390px;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    min-height: calc(0.88rem * 1.6 * 2)
   }
 
   .hbtns {
     display: flex;
-    gap: 0.55rem
+    gap: 0.55rem;
+    min-height: 2.65rem;
+    align-items: center
+  }
+
+  #heroWatchBtn.hero-watch-hidden {
+    visibility: hidden;
+    pointer-events: none
   }
 
   .btn-p {
@@ -3332,6 +3420,7 @@
     
     /* Hero section */
     .hero {
+      --hero-height: 320px;
       padding: 2rem 1rem 1.5rem;
     }
 
@@ -3346,16 +3435,20 @@
     .htitle {
       font-size: 1.8rem;
       line-height: 1.1;
+      min-height: calc(1.8rem * 1.1 * 2)
     }
     
     .hsub {
       font-size: 0.85rem;
       margin-bottom: 1rem;
+      min-height: calc(0.85rem * 1.6 * 2)
     }
     
     .hbtns {
       flex-direction: column;
       gap: 0.5rem;
+      min-height: 5.5rem;
+      align-items: stretch
     }
     
     .btn-p, .btn-g {
@@ -3519,15 +3612,18 @@
     
     /* Hero */
     .hero {
+      --hero-height: 340px;
       padding: 1.5rem 0.75rem 1.2rem;
     }
     
     .htitle {
       font-size: 1.5rem;
+      min-height: calc(1.5rem * 1.05 * 2)
     }
     
     .hsub {
       font-size: 0.8rem;
+      min-height: calc(0.8rem * 1.6 * 2)
     }
     
     /* Grids - smaller cards on mobile */
@@ -3718,6 +3814,18 @@
     .hero-bg-slider {
       width: 70%;
       opacity: 0.22;
+    }
+
+    .hero-nav {
+      right: 0.65rem;
+      top: auto;
+      bottom: 1rem;
+      transform: none
+    }
+
+    .hero-nav-btn {
+      width: 44px;
+      height: 44px
     }
     
     /* Make buttons more touch-friendly */
@@ -4836,13 +4944,22 @@
   <div class="hero">
     <canvas id="heroPts"></canvas>
     <div class="hero-bg-slider" id="heroSlider"></div>
-    <div class="hero-inner">
-      <div class="hero-tag">✨ Welcome to Cat-ime</div>
-      <div class="htitle">Your Cat-themed<br>Anime Hub</div>
-      <div class="hsub">Your one-stop destination for watching english subs and dubs of your favorite anime!
+    <div class="hero-nav" id="heroNav" hidden>
+      <button type="button" class="hero-nav-btn" id="heroPrev" aria-label="Previous featured anime">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      </button>
+      <button type="button" class="hero-nav-btn" id="heroNext" aria-label="Next featured anime">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+      </button>
+    </div>
+    <div class="hero-inner" id="heroInner">
+      <div class="hero-tag" id="heroTag">Welcome to Cat-ime <span class="hero-tag-cat">&gt;⩊&lt;</span></div>
+      <div class="htitle" id="heroTitle">Your Cat-themed<br>Anime Hub</div>
+      <div class="hsub" id="heroSub">Your one-stop destination for watching english subs and dubs of your favorite anime!
       </div>
-      <div class="hbtns">
-        <button class="btn-p" onclick="goPage('search')">🔍 Browse Anime</button>
+      <div class="hbtns" id="heroBtns">
+        <button class="btn-p hero-watch-hidden" type="button" id="heroWatchBtn">▶ Watch</button>
+        <button class="btn-p" type="button" onclick="event.stopPropagation(); goPage('search')">🔍 Browse Anime</button>
       </div>
     </div>
   </div>
@@ -5336,7 +5453,7 @@
 
 <footer class="footer">
   <span class="footer-suggest">Have suggestions? Email <a href="mailto:thecatime@gmail.com">thecatime@gmail.com</a></span>
-  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v3.11</footer>
+  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v3.12</footer>
   <!-- Ya i added a cat emoticon in the footer deal with it :P -->
 
     <script>
@@ -5676,6 +5793,7 @@
           loadUpcomingCalendar();
         }
         if (id === 'stats') CatimeFeatures.loadStatsPage();
+        window.scrollTo(0, 0);
       }
 
       function toast(msg) {
@@ -6013,29 +6131,53 @@
         }
       }
 
-      async function loadSearchContent(type) {
-        goPage('search');
-        document.getElementById('searchInput').value = '';
+      function selectGenreFilter(genre) {
         document.querySelectorAll('.filters .fp').forEach(p => p.classList.remove('on'));
-        document.querySelector('.filters .fp').classList.add('on');
-        curGenre = '';
+        const sel = genre
+          ? `.filters .fp[onclick*="setGenre(this,'${genre}')"]`
+          : `.filters .fp[onclick*="setGenre(this,'')"]`;
+        const el = document.querySelector(sel);
+        (el || document.querySelector('.filters .fp')).classList.add('on');
+        curGenre = genre;
+      }
+
+      async function loadSearchContent(type) {
+        const genreTypes = {
+          action: 'Action Anime',
+          romance: 'Romance Anime',
+          fantasy: 'Fantasy Anime',
+          comedy: 'Comedy Anime',
+          'sci-fi': 'Sci-Fi Anime'
+        };
+
+        document.getElementById('searchInput').value = '';
         document.getElementById('seasonFilter').value = '';
         document.getElementById('yearFilter').value = '';
-        
         currentSearchSort = 'TRENDING_DESC';
+        curGenre = '';
+
         let title = 'Trending Anime';
-        
         if (type === 'toprated') {
           currentSearchSort = 'SCORE_DESC';
           title = 'Top Rated Anime';
+          selectGenreFilter('');
         } else if (type === 'popular') {
           currentSearchSort = 'POPULARITY_DESC';
           title = 'Most Popular Anime';
+          selectGenreFilter('');
+        } else if (type === 'trending') {
+          selectGenreFilter('');
+        } else if (genreTypes[type]) {
+          title = genreTypes[type];
+          selectGenreFilter(type);
+        } else {
+          selectGenreFilter('');
         }
-        
+
         document.querySelector('.search-wrap > div:first-child').textContent = title;
-        
+        goPage('search');
         await doSearch('', true);
+        window.scrollTo(0, 0);
       }
 
       function initializeYearFilter() {
@@ -6944,6 +7086,61 @@
       let slidingHero = [];
       let slideIdx = 0;
       let heroTimer = null;
+
+      function openHeroAnime(idx) {
+        const i = idx != null ? idx : slideIdx;
+        const item = slidingHero[i];
+        if (item) watchAnime(item);
+      }
+
+      function updateHeroDisplay(idx) {
+        const item = slidingHero[idx];
+        const tag = document.getElementById('heroTag');
+        const title = document.getElementById('heroTitle');
+        const sub = document.getElementById('heroSub');
+        const inner = document.getElementById('heroInner');
+        const watchBtn = document.getElementById('heroWatchBtn');
+        if (!item || !tag || !title || !sub || !inner) return;
+        title.textContent = item.title;
+        sub.textContent = `★ ${item.score} · ${item.eps} episodes · Click to watch`;
+        inner.classList.add('hero-clickable');
+        inner.setAttribute('role', 'button');
+        inner.setAttribute('tabindex', '0');
+        inner.setAttribute('aria-label', `Watch ${item.title}`);
+        if (watchBtn) watchBtn.classList.remove('hero-watch-hidden');
+      }
+
+      function updateHeroNavVisibility() {
+        const nav = document.getElementById('heroNav');
+        if (nav) nav.hidden = slidingHero.length <= 1;
+      }
+
+      function setHeroSlide(nextIdx) {
+        const el = document.getElementById('heroSlider');
+        if (!el) return;
+        const slides = el.querySelectorAll('.hero-slide');
+        if (!slides.length) return;
+        slides[slideIdx].classList.remove('active');
+        slides[slideIdx].setAttribute('tabindex', '-1');
+        slideIdx = ((nextIdx % slides.length) + slides.length) % slides.length;
+        slides[slideIdx].classList.add('active');
+        slides[slideIdx].setAttribute('tabindex', '0');
+        updateHeroDisplay(slideIdx);
+      }
+
+      function shiftHeroSlide(delta) {
+        if (!slidingHero.length) return;
+        setHeroSlide(slideIdx + delta);
+        resetHeroTimer();
+      }
+
+      function resetHeroTimer() {
+        clearInterval(heroTimer);
+        const el = document.getElementById('heroSlider');
+        if (!el || slidingHero.length <= 1) return;
+        heroTimer = setInterval(() => shiftHeroSlide(1), 5000);
+      }
+
       function initHeroSlider(list) {
         slidingHero = list.filter(item => item.banner).slice(0, 25);
         if (!slidingHero.length) slidingHero = list.slice(0, 25);
@@ -6956,17 +7153,61 @@
           const div = document.createElement('div');
           div.className = 'hero-slide' + (i === 0 ? ' active' : '');
           div.style.backgroundImage = `url(${item.banner || item.img})`;
-          // Yoooo no more pixalated backgrond banner yippe
+          div.setAttribute('role', 'button');
+          div.setAttribute('tabindex', i === 0 ? '0' : '-1');
+          div.setAttribute('aria-label', `Watch ${item.title}`);
+          div.addEventListener('click', () => openHeroAnime(i));
+          div.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              openHeroAnime(i);
+            }
+          });
           el.appendChild(div);
         });
-        heroTimer = setInterval(() => {
-          const slides = el.querySelectorAll('.hero-slide');
-          if (!slides.length) return;
-          slides[slideIdx].classList.remove('active');
-          slideIdx = (slideIdx + 1) % slides.length;
-          slides[slideIdx].classList.add('active');
-        }, 5000);
+        updateHeroDisplay(0);
+        updateHeroNavVisibility();
+        resetHeroTimer();
       }
+
+      function setupHeroInnerClick() {
+        const inner = document.getElementById('heroInner');
+        if (!inner || inner.dataset.heroBound) return;
+        inner.dataset.heroBound = '1';
+        inner.addEventListener('click', (e) => {
+          if (e.target.closest('#heroBtns')) return;
+          if (slidingHero.length) openHeroAnime();
+        });
+        inner.addEventListener('keydown', (e) => {
+          if (e.target.closest('#heroBtns')) return;
+          if ((e.key === 'Enter' || e.key === ' ') && slidingHero.length) {
+            e.preventDefault();
+            openHeroAnime();
+          }
+        });
+        const watchBtn = document.getElementById('heroWatchBtn');
+        if (watchBtn) {
+          watchBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openHeroAnime();
+          });
+        }
+        const prev = document.getElementById('heroPrev');
+        const next = document.getElementById('heroNext');
+        if (prev) {
+          prev.addEventListener('click', (e) => {
+            e.stopPropagation();
+            shiftHeroSlide(-1);
+          });
+        }
+        if (next) {
+          next.addEventListener('click', (e) => {
+            e.stopPropagation();
+            shiftHeroSlide(1);
+          });
+        }
+      }
+      setupHeroInnerClick();
 
       let trendingPage = 1;
       let trendingLoading = false;

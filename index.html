@@ -5222,7 +5222,7 @@
 
 <footer class="footer">
   <span class="footer-suggest">Have suggestions? Email <a href="mailto:thecatime@gmail.com">thecatime@gmail.com</a></span>
-  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v3.5</footer>
+  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v3.6</footer>
   <!-- Ya i added a cat emoticon in the footer deal with it :P -->
 
     <script>
@@ -6459,13 +6459,64 @@
         autoNext = !autoNext;
         localStorage.setItem('pref_autonext', autoNext);
         const b = document.getElementById('btnAutoNext');
-        b.classList.toggle('on', autoNext);
+        if (b) b.classList.toggle('on', autoNext);
         const sp = document.getElementById('spAutoNext');
-        sp.classList.toggle('on', autoNext);
-        sp.textContent = autoNext ? 'On' : 'Off';
+        if (sp) {
+          sp.classList.toggle('on', autoNext);
+          sp.textContent = autoNext ? 'On' : 'Off';
+        }
         toast(autoNext ? 'Auto Next on' : 'Auto Next off');
       }
-      // holy shit this somehow works
+
+      const PLAYER_EMBED_ORIGINS = /^https:\/\/(vidnest\.fun|player\.videasy\.net|embed\.videonest\.co)(:|$)/;
+      let autoNextTriggeredAt = 0;
+
+      function parsePlayerEmbedMessage(raw) {
+        let d = raw;
+        if (typeof d === 'string') {
+          try { d = JSON.parse(d); } catch {
+            return /ended|finish|complete|next_episode/i.test(d) ? { ended: true } : null;
+          }
+        }
+        if (!d || typeof d !== 'object') return null;
+        const payload = d.data && typeof d.data === 'object' ? d.data : d;
+        const eventName = payload.event || payload.name || payload.action || d.event || d.name;
+        const typeName = d.type || payload.type;
+        const ended =
+          eventName === 'ended' || eventName === 'finish' || eventName === 'complete' ||
+          typeName === 'ended' || typeName === 'VIDEO_ENDED' || typeName === 'complete' || typeName === 'NEXT_EPISODE' ||
+          d === 'ended' ||
+          (d.context === 'player.js' && (d.event === 'finish' || d.event === 'ended'));
+        const progress = payload.currentTime ?? payload.watched ?? payload.progress;
+        const duration = payload.duration;
+        return { ended, eventName, progress, duration };
+      }
+
+      function triggerAutoNextOnce() {
+        const now = Date.now();
+        if (now - autoNextTriggeredAt < 4000) return;
+        autoNextTriggeredAt = now;
+        goNextEpisode();
+      }
+
+      function bindPlayerEmbed(iframe) {
+        if (!iframe || !autoNext) return;
+        const subscribe = () => {
+          try {
+            ['finish', 'ended', 'complete'].forEach((ev) => {
+              iframe.contentWindow.postMessage(JSON.stringify({
+                context: 'player.js',
+                version: '0.0.11',
+                method: 'addEventListener',
+                value: ev,
+                listener: 'catime-autonext'
+              }), '*');
+            });
+          } catch (_) {}
+        };
+        iframe.addEventListener('load', subscribe);
+        subscribe();
+      }
 
       function goNextEpisode() {
         if (!curAnime) return;
@@ -6476,8 +6527,15 @@
           return;
         }
         const nextEp = curEp + 1;
-        const epItems = document.querySelectorAll('.epi');
-        if (epItems[nextEp - 1]) epItems[nextEp - 1].click();
+        const epItems = document.querySelectorAll('#epList .epi');
+        if (epItems[nextEp - 1]) {
+          epItems[nextEp - 1].click();
+          return;
+        }
+        const titles = window._lastEpTitles || [];
+        let rawTitle = titles[nextEp - 1] ? (titles[nextEp - 1].title || '') : '';
+        rawTitle = rawTitle.replace(/^Episode\s+\d+\s*[-:–]\s*/i, '').trim();
+        loadPlayer(nextEp, rawTitle || `Episode ${nextEp}`, nextEp, total);
       }
 
       function goPrevEpisode() {
@@ -6519,21 +6577,21 @@
       }
 
       window.addEventListener('message', (e) => {
-        if (!autoNext) return;
-        const d = e.data;
-        if (!d) return;
-        // Handle various player message formats (Videasy + Vidnest)
-        const isEnded =
-          d === 'ended' ||
-          d.event === 'ended' ||
-          d.type === 'ended' ||
-          d.type === 'VIDEO_ENDED' ||
-          d.type === 'complete' ||
-          d.type === 'NEXT_EPISODE' ||
-          d.event === 'complete' ||
-          (d.type === 'PLAYER_EVENT' && d.data && d.data.event === 'ended') ||
-          (typeof d === 'string' && d.includes('ended'));
-        if (isEnded) goNextEpisode();
+        if (!autoNext || !e.data) return;
+        if (e.origin !== location.origin && !PLAYER_EMBED_ORIGINS.test(e.origin)) return;
+        const parsed = parsePlayerEmbedMessage(e.data);
+        if (!parsed) return;
+        if (parsed.ended) {
+          triggerAutoNextOnce();
+          return;
+        }
+        if (
+          parsed.eventName === 'timeupdate' &&
+          parsed.duration > 90 &&
+          parsed.progress >= parsed.duration - 4
+        ) {
+          triggerAutoNextOnce();
+        }
       });
 
       function loadPlayer(epNum, epTitle, idx, total) {
@@ -6557,7 +6615,9 @@
 
         if (playerBoxEl) {
           playerBoxEl.innerHTML = `<iframe src="${url}" allowfullscreen allow="autoplay; fullscreen; encrypted-media" referrerpolicy="no-referrer-when-downgrade" style="width:100%;height:100%;border:none" title="${sanitizeHTML(epTitle)}"></iframe>`;
+          bindPlayerEmbed(playerBoxEl.querySelector('iframe'));
         }
+        autoNextTriggeredAt = 0;
         CatimeFeatures.onPlayerLoad();
         markWatched(storageId, epNum);
         syncWatchedBtn();

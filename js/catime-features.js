@@ -474,6 +474,7 @@
       info.type = 'button';
       info.className = 'acard-info-btn';
       info.title = 'Details';
+      info.setAttribute('aria-label', `Details for ${a.title || 'anime'}`);
       info.textContent = 'ⓘ';
       info.onclick = (e) => {
         e.stopPropagation();

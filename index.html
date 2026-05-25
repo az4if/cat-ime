@@ -1443,6 +1443,29 @@
     overflow-x: hidden
   }
 
+  button,
+  [role="button"],
+  input,
+  select,
+  textarea,
+  a {
+    touch-action: manipulation;
+  }
+
+  button:focus-visible,
+  [role="button"]:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  a:focus-visible,
+  .acard:focus-visible,
+  .cw-card:focus-visible,
+  .epi:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.18);
+  }
+
   nav {
     position: fixed;
     top: 0;
@@ -1488,7 +1511,7 @@
     color: var(--text3);
     border: none;
     background: none;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1)
+    transition: color 0.2s cubic-bezier(0.4, 0, 0.2, 1), background 0.2s cubic-bezier(0.4, 0, 0.2, 1), transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1)
   }
 
   .nl:hover {
@@ -1580,7 +1603,7 @@
     padding: 0.5rem;
     cursor: pointer;
     color: var(--text2);
-    transition: all 0.2s ease;
+    transition: background 0.2s ease, color 0.2s ease;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1608,7 +1631,7 @@
     color: var(--text2);
     border: none;
     background: var(--bg3);
-    transition: all 0.2s ease;
+    transition: color 0.2s ease, background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
     width: 100%;
   }
   
@@ -1763,6 +1786,26 @@
     background: var(--bg4)
   }
 
+  .icon-btn {
+    border: none;
+    background: transparent;
+    color: var(--text2);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    padding: 0.35rem;
+    position: relative;
+    transition: color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+  }
+
+  .icon-btn:hover {
+    color: var(--text);
+    background: rgba(var(--accent-rgb), 0.1);
+    transform: translateY(-1px);
+  }
+
   .sec {
     padding: 1.4rem 1.5rem
   }
@@ -1783,7 +1826,10 @@
   .sec-lnk {
     font-size: 0.75rem;
     color: var(--accent);
-    cursor: pointer
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    font-family: 'DM Sans', sans-serif
   }
 
   .sec-lnk:hover {
@@ -1816,13 +1862,17 @@
     border-radius: 11px;
     overflow: hidden;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
     border: 1px solid var(--border)
   }
 
   .acard:hover {
     transform: translateY(-3px);
     border-color: rgba(37, 99, 235, 0.35)
+  }
+
+  .acard:focus-visible {
+    transform: translateY(-3px);
   }
 
   .acard:hover .acard-thumb img {
@@ -2103,7 +2153,6 @@
     font-family: 'DM Sans', sans-serif;
     font-size: 0.92rem;
     color: var(--text);
-    outline: none;
     transition: border 0.15s
   }
 
@@ -2169,7 +2218,6 @@
     color: var(--text);
     font-size: 0.75rem;
     cursor: pointer;
-    outline: none;
     transition: 0.15s
   }
 
@@ -2278,6 +2326,26 @@
     flex-wrap: wrap
   }
 
+  .watch-control-group {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    padding: 0.35rem;
+    border: 1px solid rgba(var(--accent-rgb), 0.1);
+    border-radius: 10px;
+    background: rgba(var(--accent-rgb), 0.04);
+  }
+
+  .watch-control-label {
+    font-size: 0.64rem;
+    font-weight: 700;
+    color: var(--text3);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 0 0.2rem;
+  }
+
   .dst {
     display: flex;
     background: var(--bg3);
@@ -2295,7 +2363,7 @@
     color: var(--text2);
     background: none;
     font-weight: 500;
-    transition: 0.12s
+    transition: color 0.12s, background 0.12s
   }
 
   .db2.on {
@@ -2313,7 +2381,7 @@
     color: var(--text2);
     cursor: pointer;
     font-weight: 500;
-    transition: 0.12s
+    transition: color 0.12s, background 0.12s, border-color 0.12s
   }
 
   .mkb:hover {
@@ -2776,7 +2844,11 @@
     font-size: 0.7rem;
     color: var(--accent);
     cursor: pointer;
-    font-weight: 400
+    font-weight: 400;
+    border: none;
+    background: transparent;
+    font-family: 'DM Sans', sans-serif;
+    padding: 0.15rem 0;
   }
 
   .ni {
@@ -2906,7 +2978,7 @@
   .btn-p:hover { transform: translateY(-2px); box-shadow: 0 8px 26px rgba(var(--accent-rgb),0.25); }
 
   /* Ghost button lift */
-  .btn-g { transition: all 0.2s cubic-bezier(0.4,0,0.2,1); }
+  .btn-g { transition: background 0.2s cubic-bezier(0.4,0,0.2,1), border-color 0.2s cubic-bezier(0.4,0,0.2,1), transform 0.2s cubic-bezier(0.4,0,0.2,1); }
   .btn-g:hover { transform: translateY(-1px); }
 
   /* Search focus glow */
@@ -3218,7 +3290,7 @@
       height: 2px;
       background: var(--text);
       border-radius: 2px;
-      transition: all 0.3s ease;
+      transition: transform 0.3s ease, opacity 0.3s ease;
       transform-origin: 1px;
     }
     
@@ -3261,6 +3333,10 @@
     /* Hero section */
     .hero {
       padding: 2rem 1rem 1.5rem;
+    }
+
+    .hero::after {
+      background: linear-gradient(to bottom, rgba(14, 21, 49, 0.45) 0%, rgba(14, 21, 49, 0.82) 52%, var(--bg) 100%);
     }
     
     .hero-inner {
@@ -3333,6 +3409,12 @@
     .brow {
       flex-wrap: wrap;
       gap: 0.5rem;
+      align-items: stretch;
+    }
+
+    .watch-control-group {
+      width: 100%;
+      justify-content: space-between;
     }
     
     .dst {
@@ -3408,7 +3490,7 @@
       height: 2px;
       background: var(--text);
       border-radius: 2px;
-      transition: all 0.3s ease;
+      transition: transform 0.3s ease, opacity 0.3s ease;
       transform-origin: 1px;
     }
     
@@ -3635,12 +3717,16 @@
     /* Adjust hero background for mobile */
     .hero-bg-slider {
       width: 70%;
-      opacity: 0.25;
+      opacity: 0.22;
     }
     
     /* Make buttons more touch-friendly */
     .acard, .cw-card {
       min-height: 44px; /* iOS touch target minimum */
+    }
+
+    .acard-info-btn {
+      opacity: 1;
     }
     
     .nl, .btn-p, .btn-g, .fp, .db2, .mkb, .epi {
@@ -3747,7 +3833,7 @@
     align-items: center;
     justify-content: center;
     z-index: 10;
-    transition: all 0.2s ease;
+    transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
     backdrop-filter: blur(8px);
   }
   
@@ -3842,7 +3928,7 @@
     align-items: center;
     justify-content: center;
     border-radius: 8px;
-    transition: all 0.2s;
+    transition: background 0.2s, color 0.2s;
   }
 
   .close-btn:hover {
@@ -3870,12 +3956,11 @@
     color: var(--text);
     font-size: 16px;
     margin-bottom: 12px;
-    transition: all 0.2s;
+    transition: border-color 0.2s, background 0.2s;
     box-sizing: border-box;
   }
 
   .auth-input:focus {
-    outline: none;
     border-color: var(--accent);
     background: var(--bg4);
   }
@@ -3892,7 +3977,7 @@
     font-size: 16px;
     font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.2s;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -4161,7 +4246,7 @@
     color: var(--text);
     font-size: 14px;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
     font-weight: 500;
   }
 
@@ -4187,6 +4272,10 @@
     cursor: pointer;
     padding: 4px 8px;
     border-radius: 8px;
+    border: none;
+    background: transparent;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
     transition: background 0.2s, opacity 0.2s ease;
   }
 
@@ -4396,7 +4485,9 @@
   }
   .acard-thumb { position: relative; }
   .acard:hover .acard-info-btn,
-  .cw-card:hover .acard-info-btn { opacity: 1; }
+  .cw-card:hover .acard-info-btn,
+  .acard:focus-within .acard-info-btn,
+  .cw-card:focus-within .acard-info-btn { opacity: 1; }
 
   .detail-drawer {
     position: fixed;
@@ -4417,7 +4508,27 @@
     max-height: 88vh;
     overflow-y: auto;
     overflow-x: hidden;
+    overscroll-behavior: contain;
     position: relative;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+      transition-duration: 0.001ms !important;
+    }
+
+    .acard:hover,
+    .cw-card:hover,
+    .calendar-item:hover,
+    .btn-p:hover,
+    .scroll-nav-btn:hover {
+      transform: none !important;
+    }
   }
   .detail-close {
     position: absolute;
@@ -4589,34 +4700,34 @@
         </div>
         
         <!-- User info (shown when logged in) -->
-        <div id="userInfo" class="user-info hidden" onclick="showAccountSettings()">
+        <button id="userInfo" class="user-info hidden" type="button" onclick="showAccountSettings()" aria-label="Open account settings">
           <div class="user-avatar" id="userAvatar">
             <span id="userInitial">?</span>
           </div>
           <span id="userName" class="user-name"></span>
-        </div>
+        </button>
         
-        <div style="cursor:pointer;position:relative" onclick="toggleNP()">
+        <button class="icon-btn" type="button" onclick="toggleNP()" aria-label="Open notifications">
           <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--text2)" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round">
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
             <path d="M13.73 21a2 2 0 0 1-3.46 0" />
           </svg>
           <span id="ndot"
             style="position:absolute;top:-1px;right:-1px;width:7px;height:7px;border-radius:50%;background:var(--accent);border:1.5px solid var(--bg);display:none"></span>
-        </div>
-        <div style="cursor:pointer" onclick="toggleSP()" title="Settings">
+        </button>
+        <button class="icon-btn" type="button" onclick="toggleSP()" aria-label="Open settings" title="Settings">
           <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--text2)" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round">
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="12" cy="12" r="3"/>
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
           </svg>
-        </div>
+        </button>
       </div>
 </nav>
 
 <div class="np" id="npPanel">
-  <div class="np-hd">Notifications <span class="npm" onclick="markRead()">Mark all read</span></div>
+  <div class="np-hd">Notifications <button class="npm" type="button" onclick="markRead()">Mark all read</button></div>
   <div id="npList">
     <div style="padding:1rem;text-align:center;color:var(--text3);font-size:0.8rem">Loading notifications...</div>
   </div>
@@ -4654,14 +4765,14 @@
   <div class="sp-sec">Theme</div>
   <div style="display:flex;align-items:center;gap:0.5rem">
     <div class="th-swatches" id="thSwatches"></div>
-    <button class="custom-theme-btn" onclick="openCustomTheme()" title="Create custom theme">+</button>
+    <button class="custom-theme-btn" onclick="openCustomTheme()" title="Create custom theme" aria-label="Create custom theme">+</button>
   </div>
 
   <div class="sp-sec">Data</div>
   <div class="sp-row" style="flex-direction:column;align-items:flex-start;gap:0.4rem">
-    <button class="sp-btn-d" onclick="clearCW()">Clear continue watching</button>
-    <button class="sp-btn-d" onclick="clearHistory()">Clear all watch progress</button>
-    <button class="sp-btn-d" onclick="clearList()">Clear my list</button>
+    <button class="sp-btn-d" onclick="clearCW()" aria-label="Clear continue watching history">Clear continue watching</button>
+    <button class="sp-btn-d" onclick="clearHistory()" aria-label="Clear all episode watch progress">Clear all watch progress</button>
+    <button class="sp-btn-d" onclick="clearList()" aria-label="Clear your entire anime list">Clear my list</button>
     <button class="sp-btn-e" onclick="exportList()">Export list as JSON</button>
     <button class="sp-btn-e" onclick="exportAllData()">Export all data</button>
     <button class="sp-btn-e" onclick="importAllData()">Import data</button>
@@ -4673,7 +4784,7 @@
 <div class="panel" id="customThemePanel">
   <div class="panel-header">
     <span class="panel-title">Custom Theme</span>
-    <button class="panel-close" onclick="closeCustomTheme()">×</button>
+    <button class="panel-close" onclick="closeCustomTheme()" aria-label="Close custom theme panel">×</button>
   </div>
   <div class="custom-theme-content">
     <div class="color-picker-row">
@@ -4736,14 +4847,14 @@
     </div>
   </div>
   <div class="sec">
-    <div class="sec-hd"><span class="sec-title">Continue Watching</span><span class="sec-lnk"
-        onclick="goPage('list')">View All →</span></div>
+    <div class="sec-hd"><span class="sec-title">Continue Watching</span><button class="sec-lnk" type="button"
+        onclick="goPage('list')">View All →</button></div>
     <div class="horizontal-scroll-container">
-      <button class="scroll-nav-btn left" onclick="scrollSection('cwScroll', -300)">
+      <button class="scroll-nav-btn left" onclick="scrollSection('cwScroll', -300)" aria-label="Scroll continue watching left">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
       </button>
       <div class="horizontal-scroll" id="cwScroll"></div>
-      <button class="scroll-nav-btn right" onclick="scrollSection('cwScroll', 300)">
+      <button class="scroll-nav-btn right" onclick="scrollSection('cwScroll', 300)" aria-label="Scroll continue watching right">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
       </button>
     </div>
@@ -4753,11 +4864,11 @@
   <div class="sec" id="recSection" style="display:none">
     <div class="sec-hd"><span class="sec-title">Recommended For You</span></div>
     <div class="horizontal-scroll-container">
-      <button class="scroll-nav-btn left" onclick="scrollSection('recScroll', -300)">
+      <button class="scroll-nav-btn left" onclick="scrollSection('recScroll', -300)" aria-label="Scroll recommendations left">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
       </button>
       <div class="horizontal-scroll" id="recScroll"></div>
-      <button class="scroll-nav-btn right" onclick="scrollSection('recScroll', 300)">
+      <button class="scroll-nav-btn right" onclick="scrollSection('recScroll', 300)" aria-label="Scroll recommendations right">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
       </button>
     </div>
@@ -4765,13 +4876,13 @@
   </div>
 
   <div class="sec">
-    <div class="sec-hd"><span class="sec-title">Airing Now</span><span class="sec-lnk" onclick="CatimeFeatures.loadAiringThisWeek()">Refresh ↻</span></div>
+    <div class="sec-hd"><span class="sec-title">Airing Now</span><button class="sec-lnk" type="button" onclick="CatimeFeatures.loadAiringThisWeek()">Refresh ↻</button></div>
     <div class="horizontal-scroll-container">
-      <button class="scroll-nav-btn left" onclick="scrollSection('airingScroll', -300)">
+      <button class="scroll-nav-btn left" onclick="scrollSection('airingScroll', -300)" aria-label="Scroll airing now left">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
       </button>
       <div class="horizontal-scroll" id="airingScroll"></div>
-      <button class="scroll-nav-btn right" onclick="scrollSection('airingScroll', 300)">
+      <button class="scroll-nav-btn right" onclick="scrollSection('airingScroll', 300)" aria-label="Scroll airing now right">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
       </button>
     </div>
@@ -4779,13 +4890,13 @@
   </div>
 
   <div class="sec">
-    <div class="sec-hd"><span class="sec-title" id="seasonalTitle">This Season</span><span class="sec-lnk" onclick="CatimeFeatures.loadSeasonalHub()">Refresh ↻</span></div>
+    <div class="sec-hd"><span class="sec-title" id="seasonalTitle">This Season</span><button class="sec-lnk" type="button" onclick="CatimeFeatures.loadSeasonalHub()">Refresh ↻</button></div>
     <div class="horizontal-scroll-container">
-      <button class="scroll-nav-btn left" onclick="scrollSection('seasonalScroll', -300)">
+      <button class="scroll-nav-btn left" onclick="scrollSection('seasonalScroll', -300)" aria-label="Scroll seasonal anime left">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
       </button>
       <div class="horizontal-scroll" id="seasonalScroll"></div>
-      <button class="scroll-nav-btn right" onclick="scrollSection('seasonalScroll', 300)">
+      <button class="scroll-nav-btn right" onclick="scrollSection('seasonalScroll', 300)" aria-label="Scroll seasonal anime right">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
       </button>
     </div>
@@ -4793,14 +4904,14 @@
   </div>
   
   <div class="sec">
-    <div class="sec-hd"><span class="sec-title">Trending</span><span class="sec-lnk" onclick="loadSearchContent('trending')">See More
-        →</span></div>
+    <div class="sec-hd"><span class="sec-title">Trending</span><button class="sec-lnk" type="button" onclick="loadSearchContent('trending')">See More
+      →</button></div>
     <div class="horizontal-scroll-container">
-      <button class="scroll-nav-btn left" onclick="scrollSection('trendingScroll', -300)">
+      <button class="scroll-nav-btn left" onclick="scrollSection('trendingScroll', -300)" aria-label="Scroll trending left">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
       </button>
       <div class="horizontal-scroll" id="trendingScroll"></div>
-      <button class="scroll-nav-btn right" onclick="scrollSection('trendingScroll', 300)">
+      <button class="scroll-nav-btn right" onclick="scrollSection('trendingScroll', 300)" aria-label="Scroll trending right">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
       </button>
     </div>
@@ -4808,14 +4919,14 @@
   </div>
   
   <div class="sec">
-    <div class="sec-hd"><span class="sec-title">Top Rated</span><span class="sec-lnk" onclick="loadSearchContent('toprated')">See More
-        →</span></div>
+    <div class="sec-hd"><span class="sec-title">Top Rated</span><button class="sec-lnk" type="button" onclick="loadSearchContent('toprated')">See More
+      →</button></div>
     <div class="horizontal-scroll-container">
-      <button class="scroll-nav-btn left" onclick="scrollSection('topRatedScroll', -300)">
+      <button class="scroll-nav-btn left" onclick="scrollSection('topRatedScroll', -300)" aria-label="Scroll top rated left">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
       </button>
       <div class="horizontal-scroll" id="topRatedScroll"></div>
-      <button class="scroll-nav-btn right" onclick="scrollSection('topRatedScroll', 300)">
+      <button class="scroll-nav-btn right" onclick="scrollSection('topRatedScroll', 300)" aria-label="Scroll top rated right">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
       </button>
     </div>
@@ -4823,14 +4934,14 @@
   </div>
   
   <div class="sec">
-    <div class="sec-hd"><span class="sec-title">Most Popular</span><span class="sec-lnk" onclick="loadSearchContent('popular')">See More
-        →</span></div>
+    <div class="sec-hd"><span class="sec-title">Most Popular</span><button class="sec-lnk" type="button" onclick="loadSearchContent('popular')">See More
+      →</button></div>
     <div class="horizontal-scroll-container">
-      <button class="scroll-nav-btn left" onclick="scrollSection('popularScroll', -300)">
+      <button class="scroll-nav-btn left" onclick="scrollSection('popularScroll', -300)" aria-label="Scroll most popular left">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
       </button>
       <div class="horizontal-scroll" id="popularScroll"></div>
-      <button class="scroll-nav-btn right" onclick="scrollSection('popularScroll', 300)">
+      <button class="scroll-nav-btn right" onclick="scrollSection('popularScroll', 300)" aria-label="Scroll most popular right">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
       </button>
     </div>
@@ -4838,14 +4949,14 @@
   </div>
   
   <div class="sec">
-    <div class="sec-hd"><span class="sec-title">Action</span><span class="sec-lnk" onclick="loadSearchContent('action')">See More
-        →</span></div>
+    <div class="sec-hd"><span class="sec-title">Action</span><button class="sec-lnk" type="button" onclick="loadSearchContent('action')">See More
+      →</button></div>
     <div class="horizontal-scroll-container">
-      <button class="scroll-nav-btn left" onclick="scrollSection('actionScroll', -300)">
+      <button class="scroll-nav-btn left" onclick="scrollSection('actionScroll', -300)" aria-label="Scroll action left">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
       </button>
       <div class="horizontal-scroll" id="actionScroll"></div>
-      <button class="scroll-nav-btn right" onclick="scrollSection('actionScroll', 300)">
+      <button class="scroll-nav-btn right" onclick="scrollSection('actionScroll', 300)" aria-label="Scroll action right">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
       </button>
     </div>
@@ -4853,14 +4964,14 @@
   </div>
   
   <div class="sec">
-    <div class="sec-hd"><span class="sec-title">Romance</span><span class="sec-lnk" onclick="loadSearchContent('romance')">See More
-        →</span></div>
+    <div class="sec-hd"><span class="sec-title">Romance</span><button class="sec-lnk" type="button" onclick="loadSearchContent('romance')">See More
+      →</button></div>
     <div class="horizontal-scroll-container">
-      <button class="scroll-nav-btn left" onclick="scrollSection('romanceScroll', -300)">
+      <button class="scroll-nav-btn left" onclick="scrollSection('romanceScroll', -300)" aria-label="Scroll romance left">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
       </button>
       <div class="horizontal-scroll" id="romanceScroll"></div>
-      <button class="scroll-nav-btn right" onclick="scrollSection('romanceScroll', 300)">
+      <button class="scroll-nav-btn right" onclick="scrollSection('romanceScroll', 300)" aria-label="Scroll romance right">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
       </button>
     </div>
@@ -4868,14 +4979,14 @@
   </div>
   
   <div class="sec">
-    <div class="sec-hd"><span class="sec-title">Fantasy</span><span class="sec-lnk" onclick="loadSearchContent('fantasy')">See More
-        →</span></div>
+    <div class="sec-hd"><span class="sec-title">Fantasy</span><button class="sec-lnk" type="button" onclick="loadSearchContent('fantasy')">See More
+      →</button></div>
     <div class="horizontal-scroll-container">
-      <button class="scroll-nav-btn left" onclick="scrollSection('fantasyScroll', -300)">
+      <button class="scroll-nav-btn left" onclick="scrollSection('fantasyScroll', -300)" aria-label="Scroll fantasy left">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
       </button>
       <div class="horizontal-scroll" id="fantasyScroll"></div>
-      <button class="scroll-nav-btn right" onclick="scrollSection('fantasyScroll', 300)">
+      <button class="scroll-nav-btn right" onclick="scrollSection('fantasyScroll', 300)" aria-label="Scroll fantasy right">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
       </button>
     </div>
@@ -4883,14 +4994,14 @@
   </div>
   
   <div class="sec">
-    <div class="sec-hd"><span class="sec-title">Comedy</span><span class="sec-lnk" onclick="loadSearchContent('comedy')">See More
-        →</span></div>
+    <div class="sec-hd"><span class="sec-title">Comedy</span><button class="sec-lnk" type="button" onclick="loadSearchContent('comedy')">See More
+      →</button></div>
     <div class="horizontal-scroll-container">
-      <button class="scroll-nav-btn left" onclick="scrollSection('comedyScroll', -300)">
+      <button class="scroll-nav-btn left" onclick="scrollSection('comedyScroll', -300)" aria-label="Scroll comedy left">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
       </button>
       <div class="horizontal-scroll" id="comedyScroll"></div>
-      <button class="scroll-nav-btn right" onclick="scrollSection('comedyScroll', 300)">
+      <button class="scroll-nav-btn right" onclick="scrollSection('comedyScroll', 300)" aria-label="Scroll comedy right">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
       </button>
     </div>
@@ -4898,14 +5009,14 @@
   </div>
   
   <div class="sec">
-    <div class="sec-hd"><span class="sec-title">Sci-Fi</span><span class="sec-lnk" onclick="loadSearchContent('sci-fi')">See More
-        →</span></div>
+    <div class="sec-hd"><span class="sec-title">Sci-Fi</span><button class="sec-lnk" type="button" onclick="loadSearchContent('sci-fi')">See More
+      →</button></div>
     <div class="horizontal-scroll-container">
-      <button class="scroll-nav-btn left" onclick="scrollSection('scifiScroll', -300)">
+      <button class="scroll-nav-btn left" onclick="scrollSection('scifiScroll', -300)" aria-label="Scroll sci-fi left">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
       </button>
       <div class="horizontal-scroll" id="scifiScroll"></div>
-      <button class="scroll-nav-btn right" onclick="scrollSection('scifiScroll', 300)">
+      <button class="scroll-nav-btn right" onclick="scrollSection('scifiScroll', 300)" aria-label="Scroll sci-fi right">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
       </button>
     </div>
@@ -4923,7 +5034,7 @@
           <circle cx="11" cy="11" r="8" />
           <path d="m21 21-4.35-4.35" />
         </svg></div>
-      <input class="si" id="searchInput" type="text" placeholder="Search by title, genre, year..."
+      <input class="si" id="searchInput" type="text" name="animeSearch" aria-label="Search anime" autocomplete="off" placeholder="Search by title, genre, year…"
         oninput="debouncedSearch(this.value)">
     </div>
     <div class="filters">
@@ -4973,38 +5084,47 @@
         <div class="ep-big" id="watchTitle">Select an anime</div>
         <div class="ep-sm" id="watchMeta">Choose from the list on the right</div>
         <div class="brow">
-          <div class="dst"><button class="db2" id="dsSub" onclick="setDS('sub')">SUB</button><button class="db2"
-              id="dsDub" onclick="setDS('dub')">DUB</button></div>
-          <!-- Temporarily disabled - sources are down
-          <div class="dst"><button class="db2" id="srcVideasy" onclick="setSrc('videasy')">Videasy</button><button class="db2" id="srcAnimepahe" onclick="setSrc('animepahe')">AnimePahe</button></div>
-          -->
-          <div class="dst"><button class="db2" id="srcVidnest" onclick="setSrc('vidnest')">Vidnest</button></div>
-          <div class="dst"><button class="db2" id="srcAnimepahe" onclick="setSrc('animepahe')">AnimePahe</button></div>
-          <button class="mkb" id="btnW" onclick="toggleWatchedCurrentEp()">✓ Watched</button>
-          <button class="mkb" id="btnFollow" onclick="toggleFollow()">🔔 Follow</button>
-          <button class="mkb" id="btnQueue" onclick="addCurrentToQueue()">+ Queue</button>
-          <button class="mkb" onclick="shareCurrentAnime()">🔗 Share</button>
+          <div class="watch-control-group" aria-label="Audio mode">
+            <span class="watch-control-label">Audio</span>
+            <div class="dst"><button class="db2" id="dsSub" onclick="setDS('sub')">SUB</button><button class="db2"
+                id="dsDub" onclick="setDS('dub')">DUB</button></div>
+          </div>
+          <div class="watch-control-group" aria-label="Video source">
+            <span class="watch-control-label">Source</span>
+            <!-- Temporarily disabled - sources are down
+            <div class="dst"><button class="db2" id="srcVideasy" onclick="setSrc('videasy')">Videasy</button><button class="db2" id="srcAnimepahe" onclick="setSrc('animepahe')">AnimePahe</button></div>
+            -->
+            <div class="dst"><button class="db2" id="srcVidnest" onclick="setSrc('vidnest')">Vidnest</button></div>
+            <div class="dst"><button class="db2" id="srcAnimepahe" onclick="setSrc('animepahe')">AnimePahe</button></div>
+          </div>
+          <div class="watch-control-group" aria-label="Episode actions">
+            <span class="watch-control-label">Actions</span>
+            <button class="mkb" id="btnW" onclick="toggleWatchedCurrentEp()">✓ Watched</button>
+            <button class="mkb" id="btnFollow" onclick="toggleFollow()">🔔 Follow</button>
+            <button class="mkb" id="btnQueue" onclick="addCurrentToQueue()">+ Queue</button>
+            <button class="mkb" onclick="shareCurrentAnime()">🔗 Share</button>
+          </div>
         </div>
         <div class="bulk-row">
           <button onclick="CatimeFeatures.bulkMarkWatched('toCurrent')">Mark up to here ✓</button>
           <button onclick="CatimeFeatures.bulkMarkWatched('all')">Mark all ✓</button>
-          <button onclick="CatimeFeatures.bulkMarkWatched('clear')">Clear progress</button>
+          <button onclick="if (confirm('Clear progress for this anime?')) CatimeFeatures.bulkMarkWatched('clear')">Clear progress</button>
         </div>
         <div class="watch-extras">
-          <select id="watchRateSelect" onchange="saveWatchRating(this.value)" title="Your rating">
+          <select id="watchRateSelect" name="watchRating" aria-label="Your rating" onchange="saveWatchRating(this.value)" title="Your rating">
             <option value="">Rate</option>
             <option value="10">10</option><option value="9">9</option><option value="8">8</option><option value="7">7</option>
             <option value="6">6</option><option value="5">5</option><option value="4">4</option><option value="3">3</option>
             <option value="2">2</option><option value="1">1</option>
           </select>
-          <textarea id="watchNoteInput" placeholder="Quick note..." maxlength="500" onblur="saveWatchNote(this.value)"></textarea>
+          <textarea id="watchNoteInput" name="watchNote" aria-label="Quick note" placeholder="Quick note…" maxlength="500" onblur="saveWatchNote(this.value)"></textarea>
         </div>
         <div id="epCountdown" style="display:none;margin-top:0.6rem;font-size:0.78rem;color:var(--accent);font-weight:500;letter-spacing:0.01em"></div>
       </div>
     </div>
     <div>
       <div class="ep-col-hd">Episodes <select id="seasonSelect" onchange="switchSeason(this.value)"
-          style="display:none;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:3px;font-size:0.7rem;max-width:140px;margin-left:auto;margin-right:8px;outline:none;cursor:pointer"></select><span
+          style="display:none;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:3px;font-size:0.7rem;max-width:140px;margin-left:auto;margin-right:8px;cursor:pointer"></select><span
           id="epCnt" style="font-size:0.7rem;color:var(--text3);font-weight:400"></span></div>
       <div class="ep-list" id="epList">
         <div style="padding:2rem;text-align:center;color:var(--text3);font-size:0.82rem">Select an anime to load
@@ -5050,7 +5170,7 @@
       </label>
     </div>
     <div class="calendar-section">
-      <div class="sec-hd"><span class="sec-title">Upcoming Releases</span><span class="sec-lnk" onclick="loadUpcomingCalendar()">Refresh ↻</span></div>
+      <div class="sec-hd"><span class="sec-title">Upcoming Releases</span><button class="sec-lnk" type="button" onclick="loadUpcomingCalendar()">Refresh ↻</button></div>
       <div class="calendar-grid" id="calendarGrid">
         <div style="padding:2rem;text-align:center;color:var(--text3);font-size:0.82rem">Loading upcoming releases...</div>
       </div>
@@ -5205,18 +5325,18 @@
   </div>
 </div>
 
-<div id="toast"></div>
+<div id="toast" aria-live="polite" aria-atomic="true"></div>
 
 <div class="detail-drawer" id="detailDrawer" onclick="if(event.target===this)CatimeFeatures.closeDetailDrawer()">
   <div class="detail-drawer-inner">
-    <button class="detail-close" onclick="CatimeFeatures.closeDetailDrawer()">×</button>
+    <button class="detail-close" onclick="CatimeFeatures.closeDetailDrawer()" aria-label="Close details">×</button>
     <div id="detailDrawerBody"></div>
   </div>
 </div>
 
 <footer class="footer">
   <span class="footer-suggest">Have suggestions? Email <a href="mailto:thecatime@gmail.com">thecatime@gmail.com</a></span>
-  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v3.10</footer>
+  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v3.11</footer>
   <!-- Ya i added a cat emoticon in the footer deal with it :P -->
 
     <script>
@@ -5409,7 +5529,7 @@
       }
 
       function clearCW() {
-        if (!confirm('Clear continue watching history?')) return;
+        if (!confirm('Clear continue watching history? Your list and watched episodes will stay saved.')) return;
         CatimeStorage.clearContinueWatching();
         toast('Continue watching cleared');
       }
@@ -5421,7 +5541,7 @@
       }
 
       function clearList() {
-        if (!confirm('Clear your entire list? This cannot be undone.')) return;
+        if (!confirm('Clear your entire anime list? This cannot be undone.')) return;
         const f = JSON.parse(localStorage.getItem('followed') || '[]');
         f.forEach(id => localStorage.removeItem('stat_' + id));
         localStorage.removeItem('followed');
@@ -5653,10 +5773,19 @@
       function makeCard(a) {
         const card = document.createElement('div');
         card.className = 'acard';
+        card.setAttribute('role', 'button');
+        card.setAttribute('tabindex', '0');
+        card.setAttribute('aria-label', `Watch ${a.title}`);
         const imgEl = a.img ? `<img src="${a.img}" alt="" loading="lazy" onerror="this.style.display='none'">` : '';
         const badge = a.dubbed ? '<span class="ab db">DUB</span>' : '<span class="ab sb">SUB</span>';
         card.innerHTML = `<div class="acard-thumb">${imgEl}<div class="thumb-ov"><div class="play-chip"><div class="play-tri"></div></div></div>${badge}</div><div class="acard-info"><div class="acard-title" title="${a.title}">${a.title}</div><div class="acard-meta"><span class="score">★ ${a.score}</span><span>${a.eps} ep</span></div></div>`;
         card.onclick = () => watchAnime(a);
+        card.onkeydown = (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            watchAnime(a);
+          }
+        };
         return card;
         // the sub and dub badge code is a bit jank ngl but it works and looks decent enough so ¯\_(ツ)_/¯
       }
@@ -5809,7 +5938,7 @@
           if (searchObserver) searchObserver.disconnect();
         }
 
-        if (q || genre || season || year) document.getElementById('resInfo').textContent = 'Searching...';
+          if (q || genre || season || year) document.getElementById('resInfo').textContent = 'Searching…';
         
         searchLoading = true;
         const result = await fetchAnilistPage(q, genre, searchPage, 50, season, year, currentSearchSort);
@@ -5921,7 +6050,7 @@
       }
 
       async function pickRandomAnime() {
-        toast('Finding a random anime for you...');
+        toast('Finding a random anime for you…');
         const season = document.getElementById('seasonFilter').value;
         const year = document.getElementById('yearFilter').value;
         const genre = curGenre;
@@ -6290,7 +6419,7 @@
           const opts = statuses.map(s => `<option value="${s.cls}" ${row.status === s.cls ? 'selected' : ''}>${s.label}</option>`).join('');
           const objJson = JSON.stringify(row.obj).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
           const userRate = ratings[row.id] ? ratings[row.id] + '/10' : '—';
-          return `<tr><td class="tn" onclick='watchAnime(${objJson})'>${row.title}</td><td><select class="sb2 ${row.status}" onchange="changeStat(${row.id}, this)" style="border:none;outline:none;cursor:pointer">${opts}</select></td><td style="color:var(--text2)">${row.watchedCount}/${row.totalEps}</td><td style="color:var(--yellow)">★ ${row.scoreStr}</td><td style="color:var(--accent)">${userRate}</td><td><button class="lb" onclick="toggleFollowFor(${row.id}, this)">Unfollow</button></td></tr>`;
+          return `<tr><td class="tn" onclick='watchAnime(${objJson})'>${row.title}</td><td><select class="sb2 ${row.status}" onchange="changeStat(${row.id}, this)" style="border:none;cursor:pointer">${opts}</select></td><td style="color:var(--text2)">${row.watchedCount}/${row.totalEps}</td><td style="color:var(--yellow)">★ ${row.scoreStr}</td><td style="color:var(--accent)">${userRate}</td><td><button class="lb" onclick="toggleFollowFor(${row.id}, this)">Unfollow</button></td></tr>`;
         }).join('');
       }
 

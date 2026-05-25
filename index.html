@@ -4735,10 +4735,10 @@
       <div class="htitle">Your Cat-themed<br>Anime Hub</div>
       <div class="hsub">Your one-stop destination for watching english subs and dubs of your favorite anime!
       </div>
+      <div class="hbtns">
+        <button class="btn-p" onclick="goPage('search')">🔍 Browse Anime</button>
+      </div>
     </div>
-  </div>
-  <div class="hbtns">
-    <button class="btn-p" onclick="goPage('search')">🔍 Browse Anime</button>
   </div>
   <div class="sec">
     <div class="sec-hd"><span class="sec-title">Continue Watching</span><span class="sec-lnk"
@@ -5222,7 +5222,7 @@
 
 <footer class="footer">
   <span class="footer-suggest">Have suggestions? Email <a href="mailto:thecatime@gmail.com">thecatime@gmail.com</a></span>
-  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v3.4</footer>
+  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v3.5</footer>
   <!-- Ya i added a cat emoticon in the footer deal with it :P -->
 
     <script>
@@ -6539,7 +6539,6 @@
       function loadPlayer(epNum, epTitle, idx, total) {
         if (!curAnime) return;
         const storageId = curAnime.id;
-        const streamId = curAnime.malId || curAnime.idMal || storageId;
         curEp = epNum;
         CatimeFeatures.updateRoute('watch', storageId, epNum, curDS);
         const watchTitleEl = document.getElementById('watchTitle');
@@ -6551,9 +6550,9 @@
 
         let url;
         if (curSource === 'vidnest') {
-          url = `https://vidnest.fun/anime/${streamId}/${epNum}/${curDS}`;
+          url = `https://vidnest.fun/anime/${storageId}/${epNum}/${curDS}`;
         } else {
-          url = `https://vidnest.fun/animepahe/${streamId}/${epNum}/${curDS}`;
+          url = `https://vidnest.fun/animepahe/${storageId}/${epNum}/${curDS}`;
         }
 
         if (playerBoxEl) {

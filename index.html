@@ -5216,7 +5216,7 @@
 
 <footer class="footer">
   <span class="footer-suggest">Have suggestions? Email <a href="mailto:thecatime@gmail.com">thecatime@gmail.com</a></span>
-  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v3.9</footer>
+  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v3.10</footer>
   <!-- Ya i added a cat emoticon in the footer deal with it :P -->
 
     <script>
@@ -6456,13 +6456,13 @@
           return;
         }
         const nextEp = curEp + 1;
-        const epItems = document.querySelectorAll('.epi');
+        const epItems = document.querySelectorAll('#epList .epi');
         if (epItems[nextEp - 1]) epItems[nextEp - 1].click();
       }
 
       function goPrevEpisode() {
         if (!curAnime || curEp <= 1) { toast('No previous episode'); return; }
-        const epItems = document.querySelectorAll('.epi');
+        const epItems = document.querySelectorAll('#epList .epi');
         if (epItems[curEp - 2]) epItems[curEp - 2].click();
       }
 
@@ -6520,16 +6520,23 @@
           playerBoxEl.innerHTML = `<iframe src="${url}" allowfullscreen allow="autoplay; fullscreen; encrypted-media" referrerpolicy="no-referrer-when-downgrade" style="width:100%;height:100%;border:none" title="${sanitizeHTML(epTitle)}"></iframe>`;
         }
         CatimeFeatures.onPlayerLoad();
-        markWatched(storageId, epNum);
+        CatimeStorage.updateContinueWatching(storageId, epNum);
         syncWatchedBtn();
 
         const epsList = document.getElementById('epList');
         if (epsList && epsList.children[idx - 1]) {
-          document.querySelectorAll('.epi').forEach((e) => e.classList.remove('cur'));
+          const watched = new Set(JSON.parse(localStorage.getItem('w_' + storageId) || '[]'));
+          document.querySelectorAll('#epList .epi').forEach((e) => e.classList.remove('cur'));
           const item = epsList.children[idx - 1];
-          item.classList.add('done', 'cur');
-          if (!item.querySelector('.etick')) {
-            item.innerHTML += `<div class="etick">✓</div>`;
+          item.classList.add('cur');
+          if (watched.has(epNum)) {
+            item.classList.add('done');
+            if (!item.querySelector('.etick')) {
+              const tick = document.createElement('div');
+              tick.className = 'etick';
+              tick.textContent = '✓';
+              item.appendChild(tick);
+            }
           }
         }
       }
@@ -6552,6 +6559,7 @@
         }
 
         CatimeStorage.updateContinueWatching(id, ep);
+        if (typeof markLocalAppDataModified === 'function') markLocalAppDataModified();
       }
 
       function unmarkWatched(id, ep) {

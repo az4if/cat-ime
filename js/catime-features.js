@@ -54,7 +54,8 @@
 
   function setRating(id, score) {
     const r = getRatings();
-    if (score) r[id] = score;
+    const n = Number(score);
+    if (n > 0) r[id] = n;
     else delete r[id];
     localStorage.setItem(RATINGS_KEY, JSON.stringify(r));
     if (typeof global.markLocalAppDataModified === 'function') global.markLocalAppDataModified();

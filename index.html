@@ -224,7 +224,7 @@
         const prefs = {
           pref_theme: localStorage.getItem('pref_theme') ?? '0',
           pref_ds: localStorage.getItem('pref_ds') || 'sub',
-          pref_source: localStorage.getItem('pref_source') || 'animepahe',
+          pref_source: localStorage.getItem('pref_source') || 'vidnest',
           pref_list_filter: localStorage.getItem('pref_list_filter') || 'all',
           pref_list_sort: localStorage.getItem('pref_list_sort') || 'title'
         };
@@ -5555,7 +5555,7 @@
 
 <footer class="footer">
   <span class="footer-suggest">Have suggestions? Email <a href="mailto:thecatime@gmail.com">thecatime@gmail.com</a></span>
-  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v3.16</footer>
+  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v3.17</footer>
   <!-- Ya i added a cat emoticon in the footer deal with it :P -->
 
     <script>
@@ -5850,7 +5850,7 @@
       let curAnime = null;
       let curEp = 1;
       let curDS = localStorage.getItem('pref_ds') || 'sub';
-      let curSource = localStorage.getItem('pref_source') || 'animepahe';
+      let curSource = localStorage.getItem('pref_source') || 'vidnest';
       let curGenre = '';
       let loggedIn = false;
       let countdownTimer = null;
@@ -6890,12 +6890,13 @@
         if (watchMetaEl) watchMetaEl.textContent = `Episode ${idx} of ${total} · ${curDS.toUpperCase()}${resumeLabel}`;
 
         const mode = curDS === 'dub' ? 'dub' : 'sub';
-        let url = `https://vidnest.fun/anime/${storageId}/${epNum}/${mode}`;
+        const urlBase = curSource === 'animepahe'
+          ? `https://new.vidnest.fun/animepahe/${storageId}/${epNum}/${mode}`
+          : `https://vidnest.fun/anime/${storageId}/${epNum}/${mode}`;
         const playerParams = new URLSearchParams();
-        if (curSource === 'animepahe') playerParams.set('server', 'alfa');
         if (resumeAt > 0) playerParams.set('startAt', String(resumeAt));
         const playerQs = playerParams.toString();
-        if (playerQs) url += `?${playerQs}`;
+        const url = playerQs ? `${urlBase}?${playerQs}` : urlBase;
 
         if (playerBoxEl) {
           playerBoxEl.innerHTML = `<iframe src="${url}" allowfullscreen allow="autoplay; fullscreen; encrypted-media" referrerpolicy="no-referrer-when-downgrade" style="width:100%;height:100%;border:none" title="${sanitizeHTML(epTitle)}"></iframe>`;

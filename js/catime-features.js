@@ -477,7 +477,7 @@
     progressListenerBound = true;
 
     const onMessage = (event) => {
-      if (!event.origin || !event.origin.includes('vidnest.fun')) return;
+      if (!event.origin || !/vidnest\.fun/i.test(event.origin)) return;
       const sec = extractPlaybackSeconds(event.data);
       if (sec == null || !playbackCtx.id) return;
       playbackCtx.seconds = Math.max(playbackCtx.seconds, sec);
@@ -508,7 +508,7 @@
 
   function rotateSource() {
     if (typeof global.setSrc !== 'function') return;
-    const cur = localStorage.getItem('pref_source') || 'animepahe';
+    const cur = localStorage.getItem('pref_source') || 'vidnest';
     const next = cur === 'vidnest' ? 'animepahe' : 'vidnest';
     global.setSrc(next);
     if (typeof global.toast === 'function') global.toast('Switched to ' + next);

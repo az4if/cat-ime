@@ -1,8 +1,8 @@
-const CACHE = 'catime-v10';
-const ASSETS = ['./', './index.html', './js/catime-api.js', './js/catime-storage.js', './js/catime-ui.js', './js/catime-features.js'];
+const CACHE = 'catime-v12';
+const ASSETS = ['./', './index.html', './dmca.html', './dmca/index.html', './js/catime-api.js', './js/catime-storage.js', './js/catime-ui.js', './js/catime-features.js'];
 
 function isHtmlRequest(url) {
-  return url.pathname === '/' || url.pathname.endsWith('/') || url.pathname.endsWith('.html');
+  return url.pathname === '/' || url.pathname === '/dmca' || url.pathname.startsWith('/dmca') || url.pathname.endsWith('/') || url.pathname.endsWith('.html');
 }
 
 function cachePut(request, response) {

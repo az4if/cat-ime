@@ -5,6 +5,8 @@
   const CW_KEY = 'cw';
   const CW_MAX = 10;
   const EVENT_CW = 'catime-cw-changed';
+  const PROG_PREFIX = 'epprog_';
+  const PROG_MIN_SEC = 15;
 
   function parseJSON(key, fallback) {
     try {
@@ -40,6 +42,41 @@
 
   function removeFromContinueWatching(id) {
     return setContinueWatching(getContinueWatching().filter(c => c.id !== Number(id)));
+  }
+
+  function episodeProgressKey(id, ep) {
+    return `${PROG_PREFIX}${Number(id)}_${Number(ep)}`;
+  }
+
+  function getEpisodeProgress(id, ep) {
+    const raw = localStorage.getItem(episodeProgressKey(id, ep));
+    const n = Number(raw);
+    return Number.isFinite(n) && n >= PROG_MIN_SEC ? Math.floor(n) : 0;
+  }
+
+  function setEpisodeProgress(id, ep, seconds) {
+    const key = episodeProgressKey(id, ep);
+    const s = Math.floor(Number(seconds) || 0);
+    if (s < PROG_MIN_SEC) {
+      localStorage.removeItem(key);
+      return 0;
+    }
+    localStorage.setItem(key, String(s));
+    return s;
+  }
+
+  function clearEpisodeProgress(id, ep) {
+    localStorage.removeItem(episodeProgressKey(id, ep));
+  }
+
+  function clearAllEpisodeProgressForAnime(id) {
+    const prefix = `${PROG_PREFIX}${Number(id)}_`;
+    const toRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(prefix)) toRemove.push(key);
+    }
+    toRemove.forEach((key) => localStorage.removeItem(key));
   }
 
   function clearContinueWatching() {
@@ -88,7 +125,13 @@
     setContinueWatching,
     updateContinueWatching,
     removeFromContinueWatching,
+    getEpisodeProgress,
+    setEpisodeProgress,
+    clearEpisodeProgress,
+    clearAllEpisodeProgressForAnime,
     clearContinueWatching,
+    PROG_PREFIX,
+    PROG_MIN_SEC,
     getFollowed,
     getMostWatchedIds,
     getRecommendationSourceIds,

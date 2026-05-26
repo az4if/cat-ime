@@ -256,8 +256,14 @@
       eps = new Set();
       localStorage.removeItem('stat_' + id);
       if (global.CatimeStorage?.removeFromContinueWatching) global.CatimeStorage.removeFromContinueWatching(id);
+      if (global.CatimeStorage?.clearAllEpisodeProgressForAnime) global.CatimeStorage.clearAllEpisodeProgressForAnime(id);
     }
     localStorage.setItem(k, JSON.stringify([...eps].sort((a, b) => a - b)));
+    if (mode === 'all') {
+      for (let i = 1; i <= total; i++) global.CatimeStorage?.clearEpisodeProgress?.(id, i);
+    } else if (mode === 'toCurrent') {
+      for (let i = 1; i <= ep; i++) global.CatimeStorage?.clearEpisodeProgress?.(id, i);
+    }
     if (eps.size >= total) localStorage.setItem('stat_' + id, 'sc');
     if (typeof global.markLocalAppDataModified === 'function') global.markLocalAppDataModified();
     if (typeof global.buildEpList === 'function') global.buildEpList(anime, total, global._lastEpTitles || []);
@@ -417,10 +423,82 @@
   }
 
   let sourceFailoverTimer = null;
+  let playbackCtx = { id: null, ep: null, seconds: 0 };
+  let progressListenerBound = false;
+  let lastProgressSaveAt = 0;
 
-  function onPlayerLoad() {
+  function extractPlaybackSeconds(data) {
+    let o = data;
+    if (typeof o === 'string') {
+      try { o = JSON.parse(o); } catch { return null; }
+    }
+    if (!o || typeof o !== 'object') return null;
+    const candidates = [
+      o.currentTime,
+      o.current,
+      o.time,
+      o.position,
+      o.played,
+      o.seconds,
+      o.data?.currentTime,
+      o.data?.current,
+      o.data?.time,
+      o.payload?.currentTime,
+      o.detail?.currentTime,
+      o.progress?.current
+    ];
+    for (const c of candidates) {
+      const n = Number(c);
+      if (Number.isFinite(n) && n >= 0) return n;
+    }
+    const type = String(o.type || o.event || '').toLowerCase();
+    if (type.includes('time') || type.includes('progress')) {
+      const n = Number(o.value ?? o.t ?? o.currentTime);
+      if (Number.isFinite(n) && n >= 0) return n;
+    }
+    return null;
+  }
+
+  function bindPlaybackContext(animeId, ep) {
+    playbackCtx = { id: Number(animeId), ep: Number(ep), seconds: 0 };
+  }
+
+  function flushEpisodeProgress() {
+    const { id, ep, seconds } = playbackCtx;
+    if (!id || !ep || seconds < (global.CatimeStorage?.PROG_MIN_SEC || 15)) return;
+    if (global.CatimeStorage?.setEpisodeProgress) {
+      global.CatimeStorage.setEpisodeProgress(id, ep, seconds);
+      if (typeof global.markLocalAppDataModified === 'function') global.markLocalAppDataModified();
+    }
+  }
+
+  function ensurePlayerProgressListener() {
+    if (progressListenerBound) return;
+    progressListenerBound = true;
+
+    const onMessage = (event) => {
+      if (!event.origin || !event.origin.includes('vidnest.fun')) return;
+      const sec = extractPlaybackSeconds(event.data);
+      if (sec == null || !playbackCtx.id) return;
+      playbackCtx.seconds = Math.max(playbackCtx.seconds, sec);
+      const now = Date.now();
+      if (now - lastProgressSaveAt < 4000) return;
+      lastProgressSaveAt = now;
+      if (global.CatimeStorage?.setEpisodeProgress) {
+        global.CatimeStorage.setEpisodeProgress(playbackCtx.id, playbackCtx.ep, sec);
+      }
+    };
+
+    global.addEventListener('message', onMessage);
+    global.addEventListener('pagehide', flushEpisodeProgress);
+    global.addEventListener('beforeunload', flushEpisodeProgress);
+  }
+
+  function onPlayerLoad(animeId, ep) {
     clearTimeout(sourceFailoverTimer);
     trackWatchDay();
+    if (animeId != null && ep != null) bindPlaybackContext(animeId, ep);
+    ensurePlayerProgressListener();
     if (localStorage.getItem('pref_autofailover') === 'false') return;
     sourceFailoverTimer = setTimeout(() => {
       if (!document.getElementById('page-watch')?.classList.contains('active')) return;
@@ -503,6 +581,8 @@
     loadSeasonalHub,
     renderQueuePanel,
     onPlayerLoad,
+    bindPlaybackContext,
+    flushEpisodeProgress,
     rotateSource,
     pickRandomFromList,
     enhanceMakeCard,

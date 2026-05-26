@@ -3390,6 +3390,31 @@
     text-decoration: underline;
     filter: brightness(1.15);
   }
+  .sp-legal-note {
+    font-size: 0.7rem;
+    color: var(--text3);
+    line-height: 1.5;
+    margin-bottom: 0.55rem;
+  }
+  .sp-legal-btn {
+    display: block;
+    width: 100%;
+    text-align: center;
+    font-size: 0.72rem;
+    padding: 0.45rem 0.65rem;
+    border-radius: 7px;
+    background: var(--bg3);
+    color: var(--text2);
+    border: 1px solid var(--border);
+    text-decoration: none;
+    font-family: 'DM Sans', sans-serif;
+    transition: 0.15s;
+  }
+  .sp-legal-btn:hover {
+    color: var(--accent);
+    border-color: rgba(var(--accent-rgb), 0.35);
+    background: rgba(var(--accent-rgb), 0.08);
+  }
 
   /* ── MOBILE RESPONSIVE DESIGN ── */
 
@@ -4951,6 +4976,10 @@
     <input type="file" id="importFile" accept=".json" style="display:none" onchange="handleImport(this)">
   </div>
   <p class="sp-suggest">Have suggestions? Email <a href="mailto:thecatime@gmail.com">thecatime@gmail.com</a></p>
+
+  <div class="sp-sec">Streaming disclaimer</div>
+  <p class="sp-legal-note">Cat-ime is only a player shell. We do not host, upload, or control any video. All streams are embedded from third-party services.</p>
+  <a class="sp-legal-btn" href="https://vidnest.fun" target="_blank" rel="noopener noreferrer">Copyright or removal requests — contact Vidnest</a>
 </div>
 
 <!-- Custom Theme Panel -->
@@ -5517,7 +5546,7 @@
 
 <footer class="footer">
   <span class="footer-suggest">Have suggestions? Email <a href="mailto:thecatime@gmail.com">thecatime@gmail.com</a></span>
-  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v3.14</footer>
+  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v3.15</footer>
   <!-- Ya i added a cat emoticon in the footer deal with it :P -->
 
     <script>

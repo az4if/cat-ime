@@ -3322,6 +3322,24 @@
     font-family: 'DM Sans', sans-serif
   }
   .sp-btn-e:hover { background: rgba(var(--accent-rgb),0.18) }
+  .sp-suggest {
+    margin-top: 1rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.72rem;
+    color: var(--text3);
+    line-height: 1.45;
+    text-align: center;
+  }
+  .sp-suggest a {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 500;
+  }
+  .sp-suggest a:hover {
+    text-decoration: underline;
+    filter: brightness(1.15);
+  }
 
   /* ── MOBILE RESPONSIVE DESIGN ── */
 
@@ -4886,6 +4904,7 @@
     <button class="sp-btn-e" onclick="importAllData()">Import data</button>
     <input type="file" id="importFile" accept=".json" style="display:none" onchange="handleImport(this)">
   </div>
+  <p class="sp-suggest">Have suggestions? Email <a href="mailto:thecatime@gmail.com">thecatime@gmail.com</a></p>
 </div>
 
 <!-- Custom Theme Panel -->
@@ -5453,7 +5472,7 @@
 
 <footer class="footer">
   <span class="footer-suggest">Have suggestions? Email <a href="mailto:thecatime@gmail.com">thecatime@gmail.com</a></span>
-  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v3.12</footer>
+  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v3.13</footer>
   <!-- Ya i added a cat emoticon in the footer deal with it :P -->
 
     <script>

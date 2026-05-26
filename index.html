@@ -2122,6 +2122,9 @@
     right: 5px;
     width: 24px;
     height: 24px;
+    border: none;
+    padding: 0;
+    cursor: pointer;
     background: rgba(0, 0, 0, 0.5);
     color: white;
     border-radius: 50%;
@@ -2626,8 +2629,55 @@
   }
 
   .etick {
+    width: 0.55rem;
+    height: 0.9rem;
+    border: solid var(--green);
+    border-width: 0 0 2px 2px;
+    transform: rotate(-45deg);
+    flex-shrink: 0;
+    margin-left: auto
+  }
+
+  .icon-play-sm {
+    display: inline-block;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 0.32em 0 0.32em 0.55em;
+    border-color: transparent transparent transparent currentColor;
+    vertical-align: -0.1em;
+    margin-right: 0.35em
+  }
+
+  .player-ph .play-tri--lg {
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 1.1rem 0 1.1rem 1.85rem;
+    border-color: transparent transparent transparent var(--text3);
+    margin: 0 auto 0.5rem
+  }
+
+  .ui-close {
+    font-size: 1.35rem;
+    line-height: 1;
+    font-weight: 300
+  }
+
+  .btn-icon-remove {
+    font-size: 1rem;
+    line-height: 1;
+    font-weight: 500;
+    color: var(--text3)
+  }
+
+  .acard-info-btn {
     font-size: 0.72rem;
-    color: var(--green)
+    font-weight: 700;
+    font-style: italic;
+    font-family: Georgia, 'Times New Roman', serif;
+    line-height: 26px;
+    text-align: center
   }
 
   .list-wrap {
@@ -4604,7 +4654,6 @@
     border: none;
     background: rgba(0,0,0,0.65);
     color: #fff;
-    font-size: 0.72rem;
     cursor: pointer;
     opacity: 0;
     transition: opacity 0.15s;
@@ -4873,9 +4922,6 @@
     <div class="sp-row">
     <span>Source</span>
     <div class="sp-btns">
-      <!-- Temporarily disabled - sources are down
-      <button class="db2" id="spSrcVideasy" onclick="setSrc('videasy')">Videasy</button>
-      -->
       <button class="db2" id="spSrcVidnest" onclick="setSrc('vidnest')">Vidnest</button>
       <button class="db2" id="spSrcAnimepahe" onclick="setSrc('animepahe')">AnimePahe</button>
     </div>
@@ -4911,7 +4957,7 @@
 <div class="panel" id="customThemePanel">
   <div class="panel-header">
     <span class="panel-title">Custom Theme</span>
-    <button class="panel-close" onclick="closeCustomTheme()" aria-label="Close custom theme panel">×</button>
+    <button class="panel-close ui-close" onclick="closeCustomTheme()" aria-label="Close custom theme panel">&times;</button>
   </div>
   <div class="custom-theme-content">
     <div class="color-picker-row">
@@ -4977,8 +5023,8 @@
       <div class="hsub" id="heroSub">Your one-stop destination for watching english subs and dubs of your favorite anime!
       </div>
       <div class="hbtns" id="heroBtns">
-        <button class="btn-p hero-watch-hidden" type="button" id="heroWatchBtn">▶ Watch</button>
-        <button class="btn-p" type="button" onclick="event.stopPropagation(); goPage('search')">🔍 Browse Anime</button>
+        <button class="btn-p hero-watch-hidden" type="button" id="heroWatchBtn"><span class="icon-play-sm" aria-hidden="true"></span>Watch</button>
+        <button class="btn-p" type="button" onclick="event.stopPropagation(); goPage('search')">Browse Anime</button>
       </div>
     </div>
   </div>
@@ -5012,7 +5058,7 @@
   </div>
 
   <div class="sec">
-    <div class="sec-hd"><span class="sec-title">Airing Now</span><button class="sec-lnk" type="button" onclick="CatimeFeatures.loadAiringThisWeek()">Refresh ↻</button></div>
+    <div class="sec-hd"><span class="sec-title">Airing Now</span><button class="sec-lnk" type="button" onclick="CatimeFeatures.loadAiringThisWeek()">Refresh</button></div>
     <div class="horizontal-scroll-container">
       <button class="scroll-nav-btn left" onclick="scrollSection('airingScroll', -300)" aria-label="Scroll airing now left">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
@@ -5026,7 +5072,7 @@
   </div>
 
   <div class="sec">
-    <div class="sec-hd"><span class="sec-title" id="seasonalTitle">This Season</span><button class="sec-lnk" type="button" onclick="CatimeFeatures.loadSeasonalHub()">Refresh ↻</button></div>
+    <div class="sec-hd"><span class="sec-title" id="seasonalTitle">This Season</span><button class="sec-lnk" type="button" onclick="CatimeFeatures.loadSeasonalHub()">Refresh</button></div>
     <div class="horizontal-scroll-container">
       <button class="scroll-nav-btn left" onclick="scrollSection('seasonalScroll', -300)" aria-label="Scroll seasonal anime left">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
@@ -5196,8 +5242,8 @@
       <select id="yearFilter" class="filter-select" onchange="applyFilters()">
         <option value="">All Years</option>
       </select>
-      <button class="random-btn" onclick="pickRandomAnime()">🎲 Random</button>
-      <button class="random-btn secondary" onclick="CatimeFeatures.pickRandomFromList()">📋 From List</button>
+      <button class="random-btn" onclick="pickRandomAnime()">Random</button>
+      <button class="random-btn secondary" onclick="CatimeFeatures.pickRandomFromList()">From List</button>
     </div>
     <div class="res-info" id="resInfo">Showing all anime</div>
     <div class="grid" id="searchGrid"></div>
@@ -5212,7 +5258,7 @@
     <div>
       <div class="player-box" id="playerBox">
         <div class="player-ph">
-          <div class="pi">▶</div>
+          <div class="play-tri play-tri--lg" aria-hidden="true"></div>
           <div style="font-size:0.82rem">Select an anime and episode to watch</div>
         </div>
       </div>
@@ -5227,23 +5273,22 @@
           </div>
           <div class="watch-control-group" aria-label="Video source">
             <span class="watch-control-label">Source</span>
-            <!-- Temporarily disabled - sources are down
-            <div class="dst"><button class="db2" id="srcVideasy" onclick="setSrc('videasy')">Videasy</button><button class="db2" id="srcAnimepahe" onclick="setSrc('animepahe')">AnimePahe</button></div>
-            -->
-            <div class="dst"><button class="db2" id="srcVidnest" onclick="setSrc('vidnest')">Vidnest</button></div>
-            <div class="dst"><button class="db2" id="srcAnimepahe" onclick="setSrc('animepahe')">AnimePahe</button></div>
+            <div class="dst">
+              <button class="db2" id="srcVidnest" onclick="setSrc('vidnest')">Vidnest</button>
+              <button class="db2" id="srcAnimepahe" onclick="setSrc('animepahe')">AnimePahe</button>
+            </div>
           </div>
           <div class="watch-control-group" aria-label="Episode actions">
             <span class="watch-control-label">Actions</span>
-            <button class="mkb" id="btnW" onclick="toggleWatchedCurrentEp()">✓ Watched</button>
-            <button class="mkb" id="btnFollow" onclick="toggleFollow()">🔔 Follow</button>
+            <button class="mkb" id="btnW" onclick="toggleWatchedCurrentEp()">Watched</button>
+            <button class="mkb" id="btnFollow" onclick="toggleFollow()">Follow</button>
             <button class="mkb" id="btnQueue" onclick="addCurrentToQueue()">+ Queue</button>
-            <button class="mkb" onclick="shareCurrentAnime()">🔗 Share</button>
+            <button class="mkb" onclick="shareCurrentAnime()">Share</button>
           </div>
         </div>
         <div class="bulk-row">
-          <button onclick="CatimeFeatures.bulkMarkWatched('toCurrent')">Mark up to here ✓</button>
-          <button onclick="CatimeFeatures.bulkMarkWatched('all')">Mark all ✓</button>
+          <button onclick="CatimeFeatures.bulkMarkWatched('toCurrent')">Mark up to here</button>
+          <button onclick="CatimeFeatures.bulkMarkWatched('all')">Mark all</button>
           <button onclick="if (confirm('Clear progress for this anime?')) CatimeFeatures.bulkMarkWatched('clear')">Clear progress</button>
         </div>
         <div class="watch-extras">
@@ -5306,7 +5351,7 @@
       </label>
     </div>
     <div class="calendar-section">
-      <div class="sec-hd"><span class="sec-title">Upcoming Releases</span><button class="sec-lnk" type="button" onclick="loadUpcomingCalendar()">Refresh ↻</button></div>
+      <div class="sec-hd"><span class="sec-title">Upcoming Releases</span><button class="sec-lnk" type="button" onclick="loadUpcomingCalendar()">Refresh</button></div>
       <div class="calendar-grid" id="calendarGrid">
         <div style="padding:2rem;text-align:center;color:var(--text3);font-size:0.82rem">Loading upcoming releases...</div>
       </div>
@@ -5345,7 +5390,7 @@
     
     <div class="modal-body">
       <div class="welcome-ad-notice">
-        <strong>⚠️ Use an ad blocker</strong>
+        <strong>Warning: Use an ad blocker</strong>
         Video embeds use third-party sources with tons of redirect ads. We recommend
         <a href="https://chromewebstore.google.com/detail/ublock-origin-lite/ddkjiahejlhfcafbddmgiahcphecmpfh" target="_blank" rel="noopener noreferrer">uBlock Origin Lite</a>
         (Chrome/Edge).
@@ -5465,14 +5510,14 @@
 
 <div class="detail-drawer" id="detailDrawer" onclick="if(event.target===this)CatimeFeatures.closeDetailDrawer()">
   <div class="detail-drawer-inner">
-    <button class="detail-close" onclick="CatimeFeatures.closeDetailDrawer()" aria-label="Close details">×</button>
+    <button class="detail-close ui-close" onclick="CatimeFeatures.closeDetailDrawer()" aria-label="Close details">&times;</button>
     <div id="detailDrawerBody"></div>
   </div>
 </div>
 
 <footer class="footer">
   <span class="footer-suggest">Have suggestions? Email <a href="mailto:thecatime@gmail.com">thecatime@gmail.com</a></span>
-  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v3.13</footer>
+  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v3.14</footer>
   <!-- Ya i added a cat emoticon in the footer deal with it :P -->
 
     <script>
@@ -5915,7 +5960,7 @@
         card.setAttribute('aria-label', `Watch ${a.title}`);
         const imgEl = a.img ? `<img src="${a.img}" alt="" loading="lazy" onerror="this.style.display='none'">` : '';
         const badge = a.dubbed ? '<span class="ab db">DUB</span>' : '<span class="ab sb">SUB</span>';
-        card.innerHTML = `<div class="acard-thumb">${imgEl}<div class="thumb-ov"><div class="play-chip"><div class="play-tri"></div></div></div>${badge}</div><div class="acard-info"><div class="acard-title" title="${a.title}">${a.title}</div><div class="acard-meta"><span class="score">★ ${a.score}</span><span>${a.eps} ep</span></div></div>`;
+        card.innerHTML = `<div class="acard-thumb">${imgEl}<div class="thumb-ov"><div class="play-chip"><div class="play-tri"></div></div></div>${badge}</div><div class="acard-info"><div class="acard-title" title="${a.title}">${a.title}</div><div class="acard-meta"><span class="score">${a.score}</span><span>${a.eps} ep</span></div></div>`;
         card.onclick = () => watchAnime(a);
         card.onkeydown = (e) => {
           if (e.key === 'Enter' || e.key === ' ') {
@@ -5924,7 +5969,7 @@
           }
         };
         return card;
-        // the sub and dub badge code is a bit jank ngl but it works and looks decent enough so ¯\_(ツ)_/¯
+        // the sub and dub badge code is a bit jank ngl but it works and looks decent enough
       }
 
       function appendGrid(id, list, animate = false) {
@@ -6318,7 +6363,7 @@
           const m = Math.floor((secs % 3600) / 60);
           const s = secs % 60;
           const timeStr = d > 0 ? `${d}d ${h}h ${m}m` : h > 0 ? `${h}h ${m}m ${s}s` : `${m}m ${s}s`;
-          el.textContent = `⏱ Ep ${epNum} in ${timeStr}`;
+          el.textContent = `Ep ${epNum} in ${timeStr}`;
           el.style.display = 'block';
         }
         tick();
@@ -6524,7 +6569,7 @@
         const b = document.getElementById('btnFollow');
         if (b) {
           b.classList.toggle('on', on);
-          b.textContent = on ? '🔕 Unfollow' : '🔔 Follow';
+          b.textContent = on ? 'Unfollow' : 'Follow';
         }
       }
 
@@ -6580,7 +6625,7 @@
           const opts = statuses.map(s => `<option value="${s.cls}" ${row.status === s.cls ? 'selected' : ''}>${s.label}</option>`).join('');
           const objJson = JSON.stringify(row.obj).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
           const userRate = ratings[row.id] ? ratings[row.id] + '/10' : '—';
-          return `<tr><td class="tn" onclick='watchAnime(${objJson})'>${row.title}</td><td><select class="sb2 ${row.status}" onchange="changeStat(${row.id}, this)" style="border:none;cursor:pointer">${opts}</select></td><td style="color:var(--text2)">${row.watchedCount}/${row.totalEps}</td><td style="color:var(--yellow)">★ ${row.scoreStr}</td><td style="color:var(--accent)">${userRate}</td><td><button class="lb" onclick="toggleFollowFor(${row.id}, this)">Unfollow</button></td></tr>`;
+          return `<tr><td class="tn" onclick='watchAnime(${objJson})'>${row.title}</td><td><select class="sb2 ${row.status}" onchange="changeStat(${row.id}, this)" style="border:none;cursor:pointer">${opts}</select></td><td style="color:var(--text2)">${row.watchedCount}/${row.totalEps}</td><td style="color:var(--yellow)">${row.scoreStr}</td><td style="color:var(--accent)">${userRate}</td><td><button class="lb" onclick="toggleFollowFor(${row.id}, this)">Unfollow</button></td></tr>`;
         }).join('');
       }
 
@@ -6721,7 +6766,7 @@
           const epLabel = sanitizeHTML(epLabelRaw);
 
           const epN = i;
-          item.innerHTML = `<div class="en">${String(i).padStart(2, '0')}</div><div class="ei"><div class="enm" title="${epLabel}">${epLabel}</div></div>${watched.has(i) ? '<div class="etick">✓</div>' : ''}`;
+          item.innerHTML = `<div class="en">${String(i).padStart(2, '0')}</div><div class="ei"><div class="enm" title="${epLabel}">${epLabel}</div></div>${watched.has(i) ? '<div class="etick" aria-label="Watched"></div>' : ''}`;
           item.onclick = () => {
             document.querySelectorAll('.epi').forEach(e => e.classList.remove('cur'));
             item.classList.add('cur');
@@ -6801,10 +6846,9 @@
         if (watchMetaEl) watchMetaEl.textContent = `Episode ${idx} of ${total} · ${curDS.toUpperCase()}`;
 
         const mode = curDS === 'dub' ? 'dub' : 'sub';
-        let url = `https://vidnest.fun/anime/${storageId}/${epNum}/${mode}`;
-        if (curSource === 'animepahe') {
-          url += '?server=alfa';
-        }
+        const url = curSource === 'animepahe'
+          ? `https://vidnest.fun/animepahe/${storageId}/${epNum}/${mode}`
+          : `https://vidnest.fun/anime/${storageId}/${epNum}/${mode}`;
 
         if (playerBoxEl) {
           playerBoxEl.innerHTML = `<iframe src="${url}" allowfullscreen allow="autoplay; fullscreen; encrypted-media" referrerpolicy="no-referrer-when-downgrade" style="width:100%;height:100%;border:none" title="${sanitizeHTML(epTitle)}"></iframe>`;
@@ -6824,7 +6868,7 @@
             if (!item.querySelector('.etick')) {
               const tick = document.createElement('div');
               tick.className = 'etick';
-              tick.textContent = '✓';
+              tick.setAttribute('aria-label', 'Watched');
               item.appendChild(tick);
             }
           }
@@ -6888,7 +6932,7 @@
           const isWatched = new Set(JSON.parse(localStorage.getItem('w_' + id) || '[]')).has(curEp);
           epItem.classList.toggle('done', isWatched);
           const tick = epItem.querySelector('.etick');
-          if (isWatched && !tick) epItem.innerHTML += `<div class="etick">✓</div>`;
+          if (isWatched && !tick) epItem.innerHTML += `<div class="etick" aria-label="Watched"></div>`;
           else if (!isWatched && tick) tick.remove();
         }
       }
@@ -6945,8 +6989,8 @@
             scroll.innerHTML += `<div class="cw-card" onclick='resumeAnime(${JSON.stringify(obj).replace(/</g, '\\u003c').replace(/>/g, '\\u003e')}, ${item.ep})'>
              <div class="cw-thumb">
                <img src="${m.coverImage.large}">
-               <button type="button" class="acard-info-btn" title="Details" onclick="event.stopPropagation(); CatimeFeatures.openDetailDrawer(${m.id})">ⓘ</button>
-               <div class="cw-rm" onclick="event.stopPropagation(); removeCW(${item.id})">×</div>
+               <button type="button" class="acard-info-btn" title="Details" aria-label="Details" onclick="event.stopPropagation(); CatimeFeatures.openDetailDrawer(${m.id})">i</button>
+               <button type="button" class="cw-rm btn-icon-remove" aria-label="Remove from continue watching" onclick="event.stopPropagation(); removeCW(${item.id})">x</button>
                <div class="thumb-ov"><div class="play-chip"><div class="play-tri"></div></div></div>
              </div>
              <div class="cw-info">
@@ -7069,17 +7113,16 @@
         document.getElementById('spSrcVidnest').classList.toggle('on', s === 'vidnest');
         document.getElementById('srcAnimepahe').classList.toggle('on', s === 'animepahe');
         document.getElementById('spSrcAnimepahe').classList.toggle('on', s === 'animepahe');
-        if (s === 'animepahe') toast('AnimePahe uses Vidnest with server alfa (their /animepahe/ route is down)');
         if (curAnime) loadPlayer(curEp, 'Episode ' + curEp, curEp, curAnime.eps);
       }
 
 
       const statuses = [
-        { cls: 'sw', label: '● Watching' },
-        { cls: 'sc', label: '✓ Completed' },
-        { cls: 'spl', label: '◎ Plan to Watch' },
-        { cls: 'sd', label: '✕ Dropped' },
-        { cls: 'sh', label: '⏸ Paused' }
+        { cls: 'sw', label: 'Watching' },
+        { cls: 'sc', label: 'Completed' },
+        { cls: 'spl', label: 'Plan to Watch' },
+        { cls: 'sd', label: 'Dropped' },
+        { cls: 'sh', label: 'Paused' }
       ];
       // also spaghetti code for status cycling in the list, sue me again :P
       // how tf did this even turn into a full blown anime streaming site with all these features? I just wanted to make a simple anilist client at first lmao
@@ -7090,7 +7133,7 @@
         const next = statuses[(cur + 1) % statuses.length];
         badge.className = 'sb2 ' + next.cls;
         badge.textContent = next.label;
-        toast('Status → ' + next.label.replace(/[●✓◎✕⏸] /, ''));
+        toast('Status: ' + next.label);
       }
 
       document.addEventListener('click', e => {
@@ -7121,7 +7164,7 @@
         const watchBtn = document.getElementById('heroWatchBtn');
         if (!item || !tag || !title || !sub || !inner) return;
         title.textContent = item.title;
-        sub.textContent = `★ ${item.score} · ${item.eps} episodes · Click to watch`;
+        sub.textContent = `Score ${item.score} · ${item.eps} episodes · Click to watch`;
         inner.classList.add('hero-clickable');
         inner.setAttribute('role', 'button');
         inner.setAttribute('tabindex', '0');
@@ -7637,11 +7680,6 @@
         initScifiScroll();
       }
 
-      // Temporarily disabled - sources are down
-      /*
-      document.getElementById('srcVideasy').classList.toggle('on', curSource === 'videasy');
-      document.getElementById('srcAnimepahe').classList.toggle('on', curSource === 'animepahe');
-      */
       document.getElementById('srcVidnest').classList.toggle('on', curSource === 'vidnest');
       document.getElementById('srcAnimepahe').classList.toggle('on', curSource === 'animepahe');
       document.getElementById('dsSub').classList.toggle('on', curDS === 'sub');
@@ -7649,11 +7687,6 @@
       // sync settings panel toggles
       document.getElementById('spDsSub').classList.toggle('on', curDS === 'sub');
       document.getElementById('spDsDub').classList.toggle('on', curDS === 'dub');
-      // Temporarily disabled - sources are down
-      /*
-      document.getElementById('spSrcVideasy').classList.toggle('on', curSource === 'videasy');
-      document.getElementById('spSrcAnimepahe').classList.toggle('on', curSource === 'animepahe');
-      */
       document.getElementById('spSrcVidnest').classList.toggle('on', curSource === 'vidnest');
       document.getElementById('spSrcAnimepahe').classList.toggle('on', curSource === 'animepahe');
       // build theme swatches + apply saved theme

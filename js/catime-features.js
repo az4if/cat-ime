@@ -169,11 +169,11 @@
           <img class="detail-poster" src="${m.coverImage?.large || ''}" alt="">
           <div class="detail-content">
             <h2>${global.sanitizeHTML ? global.sanitizeHTML(card.title) : card.title}</h2>
-            <div class="detail-meta">★ ${card.score} · ${card.eps || '?'} eps · ${m.status || ''}${season ? ' · ' + season : ''}</div>
+            <div class="detail-meta">Score ${card.score} · ${card.eps || '?'} eps · ${m.status || ''}${season ? ' · ' + season : ''}</div>
             <div class="detail-genres">${genres}</div>
             <p class="detail-desc">${global.sanitizeHTML ? global.sanitizeHTML(desc) : desc}${(m.description || '').length > 420 ? '…' : ''}</p>
             <div class="detail-actions">
-              <button class="btn-p" onclick='closeDetailDrawer(); watchAnime(${objJson})'>▶ Watch</button>
+              <button class="btn-p" onclick='closeDetailDrawer(); watchAnime(${objJson})'><span class="icon-play-sm" aria-hidden="true"></span>Watch</button>
               <button class="mkb" onclick='CatimeFeatures.addToQueue(${objJson})'>+ Queue</button>
               <button class="mkb" onclick="CatimeFeatures.shareAnime(${m.id})">Share</button>
             </div>
@@ -305,7 +305,7 @@
         <div class="stat-card"><div class="stat-num">${s.showCount}</div><div class="stat-lbl">Shows tracked</div></div>
         <div class="stat-card"><div class="stat-num">${s.completed}</div><div class="stat-lbl">Completed</div></div>
         <div class="stat-card"><div class="stat-num">${s.listSize}</div><div class="stat-lbl">On your list</div></div>
-        <div class="stat-card accent"><div class="stat-num">${s.streak}</div><div class="stat-lbl">Day streak 🔥</div></div>
+        <div class="stat-card accent"><div class="stat-num">${s.streak}</div><div class="stat-lbl">Day streak</div></div>
         <div class="stat-card"><div class="stat-num">~${s.estHours}h</div><div class="stat-lbl">Est. watch time</div></div>
         <div class="stat-card"><div class="stat-num">${ratedCount}</div><div class="stat-lbl">Your ratings</div></div>
         <div class="stat-card"><div class="stat-num">${s.daysActive}</div><div class="stat-lbl">Active days</div></div>
@@ -398,7 +398,7 @@
     el.innerHTML = q.map((a, i) => {
       const obj = JSON.stringify(a).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
       const title = (global.sanitizeHTML ? global.sanitizeHTML(a.title) : a.title);
-      return `<div class="queue-item"><span class="queue-num">${i + 1}</span><span class="queue-title" onclick='watchAnime(${obj})'>${title}</span><button class="queue-rm" onclick="CatimeFeatures.removeFromQueue(${a.id})">×</button></div>`;
+      return `<div class="queue-item"><span class="queue-num">${i + 1}</span><span class="queue-title" onclick='watchAnime(${obj})'>${title}</span><button type="button" class="queue-rm btn-icon-remove" aria-label="Remove from queue" onclick="CatimeFeatures.removeFromQueue(${a.id})">x</button></div>`;
     }).join('');
   }
 
@@ -475,7 +475,7 @@
       info.className = 'acard-info-btn';
       info.title = 'Details';
       info.setAttribute('aria-label', `Details for ${a.title || 'anime'}`);
-      info.textContent = 'ⓘ';
+      info.textContent = 'i';
       info.onclick = (e) => {
         e.stopPropagation();
         openDetailDrawer(a.id);

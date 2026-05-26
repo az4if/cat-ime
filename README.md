@@ -1,4 +1,4 @@
-# 🐾 Cat-ime
+# Cat-ime ฅ^>⩊<^ ฅ
 
 <p><strong><span style="color:#e11d48">⚠️ Warning:</span></strong> The video embeds use third-party sources with tons of redirect ads. Use a good ad blocker — we recommend <a href="https://chromewebstore.google.com/detail/ublock-origin-lite/ddkjiahejlhfcafbddmgiahcphecmpfh"><strong>uBlock Origin Lite</strong></a> (Chrome/Edge).</p>
 
@@ -18,27 +18,27 @@ If you like this project, please consider giving it a star ⭐!
 
 ## Features
 
-### 🎬 Streaming & Discovery
+### Streaming & Discovery
 - **Trending & Search** — Browse trending anime or search with filters (genre, year, status, score)
 - **Smart Recommendations** — Get personalized suggestions based on your continue watching history
 - **Category Browsing** — Quick access to Action, Romance, Fantasy, Comedy, and Sci-Fi sections
 - **Upcoming Calendar** — Track upcoming anime releases with schedule information
 
-### 📺 Watching Experience
+### Watching Experience
 - **Continue Watching** — Automatically resume from where you left off
 - **Episode Tracking** — Mark episodes as watched and track your progress
 - **Auto Next Episode** — Automatically advances to the next episode when one finishes
 - **Sub/Dub Toggle** — Switch audio tracks with preference saved across sessions
 - **Source Selection** — Choose your preferred streaming source
 
-### 📋 Personal Library
+### Personal Library
 - **My List** — Track anime with Watching, Plan to Watch, Completed, Paused, and Dropped statuses; filter and sort your list
 - **Progress Tracking** — See how many episodes you've watched for each series
 - **Data Persistence** — All data saved locally in your browser
 - **Export/Import** — Backup and restore your watch history and list
 - **Account Sync** — Sign in to sync list, progress, and preferences across devices
 
-### 🎨 Customization
+### Customization
 - **Multiple Themes** — 8 built-in color themes (Default, Midnight Rose, Amber Noir, Arctic, Sakura, Purple, Emerald, Slate)
 - **Custom Themes** — Create your own color schemes
 - **Responsive Design** — Works beautifully on desktop and mobile
@@ -78,4 +78,4 @@ This is a single-file application. To modify:
 
 ---
 
-Made with 🐾 by [Thecosmiccat](https://github.com/Thecosmiccat)
+Made with love (and cats) by [Thecosmiccat](https://github.com/Thecosmiccat) `>⩊<`

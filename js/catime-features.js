@@ -125,7 +125,7 @@
   }
 
   async function fetchMediaById(id) {
-    const q = `query($id: Int){ Media(id: $id) { id idMal title { english romaji } description(asHtml: false) episodes averageScore status format season seasonYear genres startDate { year } coverImage { large extraLarge } bannerImage trailer { id site } } }`;
+    const q = `query($id: Int){ Media(id: $id) { id idMal isAdult title { english romaji } description(asHtml: false) episodes averageScore status format season seasonYear genres startDate { year } coverImage { large extraLarge } bannerImage trailer { id site } } }`;
     const d = await global.CatimeApi.fetchGraphQL(q, { id: Number(id) });
     return d?.data?.Media || null;
   }
@@ -412,6 +412,10 @@
     if (page && page !== 'home' && typeof global.goPage === 'function') global.goPage(page);
     if (animeId && typeof global.watchAnime === 'function') {
       const m = await fetchMediaById(animeId);
+      if (m?.isAdult) {
+        if (typeof global.toast === 'function') global.toast('Adult content is not available on Cat-ime');
+        return;
+      }
       if (m) global.watchAnime(mediaToCard(m), { ep, audio });
     }
   }
@@ -428,7 +432,7 @@
     }, 18000);
   }
 
-  const PLAYER_SOURCES = ['vidnest', 'animepahe', 'videasy'];
+  const PLAYER_SOURCES = ['vidnest', 'animepahe'];
 
   function rotateSource() {
     if (typeof global.setSrc !== 'function') return;

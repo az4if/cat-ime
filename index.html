@@ -4949,7 +4949,6 @@
     <div class="sp-btns">
       <button class="db2" id="spSrcVidnest" onclick="setSrc('vidnest')">Vidnest</button>
       <button class="db2" id="spSrcAnimepahe" onclick="setSrc('animepahe')">AnimePahe</button>
-      <button class="db2" id="spSrcVideasy" onclick="setSrc('videasy')">Videasy</button>
     </div>
   </div>
   <div class="sp-row">
@@ -5306,7 +5305,6 @@
             <div class="dst">
               <button class="db2" id="srcVidnest" onclick="setSrc('vidnest')">Vidnest</button>
               <button class="db2" id="srcAnimepahe" onclick="setSrc('animepahe')">AnimePahe</button>
-              <button class="db2" id="srcVideasy" onclick="setSrc('videasy')">Videasy</button>
             </div>
           </div>
           <div class="watch-control-group" aria-label="Episode actions">
@@ -5548,7 +5546,7 @@
 
 <footer class="footer">
   <span class="footer-suggest">Have suggestions? Email <a href="mailto:thecatime@gmail.com">thecatime@gmail.com</a></span>
-  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v3.20</footer>
+  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v3.21</footer>
   <!-- Ya i added a cat emoticon in the footer deal with it :P -->
 
     <script>
@@ -5843,7 +5841,7 @@
       let curAnime = null;
       let curEp = 1;
       let curDS = localStorage.getItem('pref_ds') || 'sub';
-      const PLAYER_SOURCES = ['vidnest', 'animepahe', 'videasy'];
+      const PLAYER_SOURCES = ['vidnest', 'animepahe'];
       function normalizePlayerSource(s) {
         return PLAYER_SOURCES.includes(s) ? s : 'vidnest';
       }
@@ -6559,12 +6557,12 @@
       }
 
       async function fetchSimilarAnime(id) {
-        const q = `query($id: Int){ Media(id: $id) { recommendations { edges { node { mediaRecommendation { id idMal title { english romaji } episodes averageScore coverImage { large } bannerImage } } } } } }`;
+        const q = `query($id: Int){ Media(id: $id) { recommendations { edges { node { mediaRecommendation { id idMal isAdult title { english romaji } episodes averageScore coverImage { large } bannerImage } } } } } }`;
         try {
           const res = await fetch('https://graphql.anilist.co', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q, variables: { id } }) });
           const d = await res.json();
           if (d.data && d.data.Media.recommendations.edges.length > 0) {
-            const similar = d.data.Media.recommendations.edges.slice(0, 6).map(e => {
+            const similar = d.data.Media.recommendations.edges.filter(e => !e.node.mediaRecommendation.isAdult).slice(0, 6).map(e => {
               const m = e.node.mediaRecommendation;
               return {
                 id: m.id,
@@ -6871,17 +6869,9 @@
         setDS(curDS === 'sub' ? 'dub' : 'sub');
       }
 
-      function playerAccentHex() {
-        return getComputedStyle(document.documentElement).getPropertyValue('--accent').trim().replace('#', '') || 'c9b8f5';
-      }
-
       function buildPlayerEmbedUrl(anilistId, epNum, mode, source) {
         const id = Number(anilistId);
         const ep = Number(epNum);
-
-        if (source === 'videasy') {
-          return `https://player.videasy.net/anime/${id}/${ep}?color=${encodeURIComponent(playerAccentHex())}`;
-        }
 
         if (source === 'animepahe') {
           return `https://vidnest.fun/animepahe/${id}/${ep}/${mode}`;
@@ -6940,9 +6930,6 @@
         }
       }
 
-      // Thank you Videasy for providing the anime streaming API for free, you're the real MVP <3
-      // NVM FUCK YOU VIDEASY, U JUST GET CANSER THE SEC I CHENGE THE UI
-      // welcome vidnest so if videasy is fucking around u will save us
       //well vidnest also fucked around for a bit
 
       function markWatched(id, ep) {

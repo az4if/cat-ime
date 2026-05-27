@@ -445,7 +445,11 @@
       o.data?.time,
       o.payload?.currentTime,
       o.detail?.currentTime,
-      o.progress?.current
+      o.progress?.current,
+      o.timestamp,
+      (Number.isFinite(Number(o.duration)) && Number.isFinite(Number(o.progress)))
+        ? (Number(o.progress) / 100) * Number(o.duration)
+        : null
     ];
     for (const c of candidates) {
       const n = Number(c);
@@ -477,7 +481,7 @@
     progressListenerBound = true;
 
     const onMessage = (event) => {
-      if (!event.origin || !/vidnest\.fun/i.test(event.origin)) return;
+      if (!event.origin || !/vidnest\.fun|videasy\.net/i.test(event.origin)) return;
       const sec = extractPlaybackSeconds(event.data);
       if (sec == null || !playbackCtx.id) return;
       playbackCtx.seconds = Math.max(playbackCtx.seconds, sec);
@@ -506,10 +510,14 @@
     }, 18000);
   }
 
+  const PLAYER_SOURCES = ['vidnest', 'animepahe', 'videasy'];
+
   function rotateSource() {
     if (typeof global.setSrc !== 'function') return;
-    const cur = localStorage.getItem('pref_source') || 'vidnest';
-    const next = cur === 'vidnest' ? 'animepahe' : 'vidnest';
+    const cur = PLAYER_SOURCES.includes(localStorage.getItem('pref_source'))
+      ? localStorage.getItem('pref_source')
+      : 'vidnest';
+    const next = PLAYER_SOURCES[(PLAYER_SOURCES.indexOf(cur) + 1) % PLAYER_SOURCES.length];
     global.setSrc(next);
     if (typeof global.toast === 'function') global.toast('Switched to ' + next);
   }

@@ -4958,6 +4958,7 @@
     <div class="sp-btns">
       <button class="db2" id="spSrcVidnest" onclick="setSrc('vidnest')">Vidnest</button>
       <button class="db2" id="spSrcAnimepahe" onclick="setSrc('animepahe')">AnimePahe</button>
+      <button class="db2" id="spSrcVideasy" onclick="setSrc('videasy')">Videasy</button>
     </div>
   </div>
   <div class="sp-row">
@@ -5314,6 +5315,7 @@
             <div class="dst">
               <button class="db2" id="srcVidnest" onclick="setSrc('vidnest')">Vidnest</button>
               <button class="db2" id="srcAnimepahe" onclick="setSrc('animepahe')">AnimePahe</button>
+              <button class="db2" id="srcVideasy" onclick="setSrc('videasy')">Videasy</button>
             </div>
           </div>
           <div class="watch-control-group" aria-label="Episode actions">
@@ -5555,7 +5557,7 @@
 
 <footer class="footer">
   <span class="footer-suggest">Have suggestions? Email <a href="mailto:thecatime@gmail.com">thecatime@gmail.com</a></span>
-  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v3.18</footer>
+  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v3.19</footer>
   <!-- Ya i added a cat emoticon in the footer deal with it :P -->
 
     <script>
@@ -5850,7 +5852,14 @@
       let curAnime = null;
       let curEp = 1;
       let curDS = localStorage.getItem('pref_ds') || 'sub';
-      let curSource = localStorage.getItem('pref_source') || 'vidnest';
+      const PLAYER_SOURCES = ['vidnest', 'animepahe', 'videasy'];
+      function normalizePlayerSource(s) {
+        return PLAYER_SOURCES.includes(s) ? s : 'vidnest';
+      }
+      let curSource = normalizePlayerSource(localStorage.getItem('pref_source') || 'vidnest');
+      if (localStorage.getItem('pref_source') !== curSource) {
+        localStorage.setItem('pref_source', curSource);
+      }
       let curGenre = '';
       let loggedIn = false;
       let countdownTimer = null;
@@ -5859,6 +5868,7 @@
         CatimeFeatures.closeDetailDrawer();
         const iframe = document.querySelector('#playerBox iframe');
         if (id !== 'watch' && iframe) {
+          CatimeFeatures.flushEpisodeProgress();
           pausedSrc = iframe.src;
           iframe.src = 'about:blank';
         } else if (id === 'watch' && pausedSrc) {
@@ -6871,6 +6881,43 @@
         setDS(curDS === 'sub' ? 'dub' : 'sub');
       }
 
+      function playerAccentHex() {
+        return getComputedStyle(document.documentElement).getPropertyValue('--accent').trim().replace('#', '') || 'c9b8f5';
+      }
+
+      function buildPlayerEmbedUrl(anilistId, epNum, mode, source, resumeAt) {
+        const id = Number(anilistId);
+        const ep = Number(epNum);
+        const minResume = CatimeStorage.PROG_MIN_SEC || 15;
+        const maxResume = CatimeStorage.PROG_MAX_SEC || 14400;
+        const resume = Math.min(Math.max(0, Number(resumeAt) || 0), maxResume);
+
+        if (source === 'videasy') {
+          const params = new URLSearchParams();
+          params.set('color', playerAccentHex());
+          if (resume >= minResume) params.set('progress', String(resume));
+          const qs = params.toString();
+          return `https://player.videasy.net/anime/${id}/${ep}${qs ? `?${qs}` : ''}`;
+        }
+
+        const urlBase = source === 'animepahe'
+          ? `https://vidnest.fun/animepahe/${id}/${ep}/${mode}`
+          : `https://vidnest.fun/anime/${id}/${ep}/${mode}`;
+        if (resume < minResume) return urlBase;
+        const playerParams = new URLSearchParams();
+        playerParams.set('startAt', String(resume));
+        return `${urlBase}?${playerParams.toString()}`;
+      }
+
+      function syncSourceButtons() {
+        PLAYER_SOURCES.forEach((name) => {
+          const on = curSource === name;
+          const cap = name.charAt(0).toUpperCase() + name.slice(1);
+          document.getElementById('src' + cap)?.classList.toggle('on', on);
+          document.getElementById('spSrc' + cap)?.classList.toggle('on', on);
+        });
+      }
+
       function loadPlayer(epNum, epTitle, idx, total) {
         if (!curAnime) return;
         CatimeFeatures.flushEpisodeProgress();
@@ -6890,16 +6937,10 @@
         if (watchMetaEl) watchMetaEl.textContent = `Episode ${idx} of ${total} · ${curDS.toUpperCase()}${resumeLabel}`;
 
         const mode = curDS === 'dub' ? 'dub' : 'sub';
-        const urlBase = curSource === 'animepahe'
-          ? `https://vidnest.fun/animepahe/${storageId}/${epNum}/${mode}`
-          : `https://vidnest.fun/anime/${storageId}/${epNum}/${mode}`;
-        const playerParams = new URLSearchParams();
-        if (resumeAt > 0) playerParams.set('startAt', String(resumeAt));
-        const playerQs = playerParams.toString();
-        const url = playerQs ? `${urlBase}?${playerQs}` : urlBase;
+        const url = buildPlayerEmbedUrl(storageId, epNum, mode, curSource, resumeAt);
 
         if (playerBoxEl) {
-          playerBoxEl.innerHTML = `<iframe src="${url}" allowfullscreen allow="autoplay; fullscreen; encrypted-media" referrerpolicy="no-referrer-when-downgrade" style="width:100%;height:100%;border:none" title="${sanitizeHTML(epTitle)}"></iframe>`;
+          playerBoxEl.innerHTML = `<iframe src="${url}" frameborder="0" scrolling="no" allowfullscreen allow="autoplay; fullscreen; encrypted-media" style="width:100%;height:100%;border:none" title="${sanitizeHTML(epTitle)}"></iframe>`;
         }
         CatimeFeatures.onPlayerLoad(storageId, epNum);
         CatimeStorage.updateContinueWatching(storageId, epNum);
@@ -7156,12 +7197,9 @@
       }
 
       function setSrc(s) {
-        curSource = s;
-        localStorage.setItem('pref_source', s);
-        document.getElementById('srcVidnest').classList.toggle('on', s === 'vidnest');
-        document.getElementById('spSrcVidnest').classList.toggle('on', s === 'vidnest');
-        document.getElementById('srcAnimepahe').classList.toggle('on', s === 'animepahe');
-        document.getElementById('spSrcAnimepahe').classList.toggle('on', s === 'animepahe');
+        curSource = normalizePlayerSource(s);
+        localStorage.setItem('pref_source', curSource);
+        syncSourceButtons();
         if (curAnime) loadPlayer(curEp, 'Episode ' + curEp, curEp, curAnime.eps);
       }
 
@@ -7729,15 +7767,12 @@
         initScifiScroll();
       }
 
-      document.getElementById('srcVidnest').classList.toggle('on', curSource === 'vidnest');
-      document.getElementById('srcAnimepahe').classList.toggle('on', curSource === 'animepahe');
+      syncSourceButtons();
       document.getElementById('dsSub').classList.toggle('on', curDS === 'sub');
       document.getElementById('dsDub').classList.toggle('on', curDS === 'dub');
       // sync settings panel toggles
       document.getElementById('spDsSub').classList.toggle('on', curDS === 'sub');
       document.getElementById('spDsDub').classList.toggle('on', curDS === 'dub');
-      document.getElementById('spSrcVidnest').classList.toggle('on', curSource === 'vidnest');
-      document.getElementById('spSrcAnimepahe').classList.toggle('on', curSource === 'animepahe');
       // build theme swatches + apply saved theme
       buildThemeSwatches();
       const savedTheme = getSavedThemeIndex();

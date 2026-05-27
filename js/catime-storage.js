@@ -7,6 +7,7 @@
   const EVENT_CW = 'catime-cw-changed';
   const PROG_PREFIX = 'epprog_';
   const PROG_MIN_SEC = 15;
+  const PROG_MAX_SEC = 14400;
 
   function parseJSON(key, fallback) {
     try {
@@ -51,12 +52,13 @@
   function getEpisodeProgress(id, ep) {
     const raw = localStorage.getItem(episodeProgressKey(id, ep));
     const n = Number(raw);
-    return Number.isFinite(n) && n >= PROG_MIN_SEC ? Math.floor(n) : 0;
+    if (!Number.isFinite(n) || n < PROG_MIN_SEC) return 0;
+    return Math.min(Math.floor(n), PROG_MAX_SEC);
   }
 
   function setEpisodeProgress(id, ep, seconds) {
     const key = episodeProgressKey(id, ep);
-    const s = Math.floor(Number(seconds) || 0);
+    const s = Math.min(Math.floor(Number(seconds) || 0), PROG_MAX_SEC);
     if (s < PROG_MIN_SEC) {
       localStorage.removeItem(key);
       return 0;
@@ -132,6 +134,7 @@
     clearContinueWatching,
     PROG_PREFIX,
     PROG_MIN_SEC,
+    PROG_MAX_SEC,
     getFollowed,
     getMostWatchedIds,
     getRecommendationSourceIds,

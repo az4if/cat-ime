@@ -198,11 +198,9 @@
     const watched = {};
     const statuses = {};
 
-    const episodeProgress = {};
     Object.keys(localStorage).forEach(key => {
       if (key.startsWith('w_')) watched[key] = localStorage.getItem(key);
       if (key.startsWith('stat_')) statuses[key] = localStorage.getItem(key);
-      if (key.startsWith('epprog_')) episodeProgress[key] = localStorage.getItem(key);
     });
 
     followed.forEach(id => {
@@ -219,7 +217,6 @@
       followed,
       watched,
       statuses,
-      episodeProgress,
       preferences: (() => {
         const prefs = {
           pref_theme: localStorage.getItem('pref_theme') ?? '0',
@@ -340,7 +337,7 @@
     if (dataSize > 14000) {
       return {
         data: null,
-        error: { message: 'Sync data is too large. Try exporting a backup or clearing old watch progress.' },
+        error: { message: 'Sync data is too large. Try exporting a backup or clearing watched episodes.' },
         source: 'metadata'
       };
     }
@@ -365,7 +362,7 @@
   function isAppDataStorageKey(key) {
     return key === 'cw' || key === 'followed' || key === 'lastReadNotif' || key === 'custom_theme' ||
       key === 'user_ratings' || key === 'user_notes' || key === 'watch_queue' || key === 'watch_days' ||
-      key.startsWith('w_') || key.startsWith('stat_') || key.startsWith('pref_') || key.startsWith('epprog_');
+      key.startsWith('w_') || key.startsWith('stat_') || key.startsWith('pref_');
   }
 
   function getTimestampMs(iso) {
@@ -401,12 +398,6 @@
       if (appData.statuses && typeof appData.statuses === 'object') {
         Object.entries(appData.statuses).forEach(([key, value]) => {
           if (key.startsWith('stat_') && typeof value === 'string') localStorage.setItem(key, value);
-        });
-      }
-
-      if (appData.episodeProgress && typeof appData.episodeProgress === 'object') {
-        Object.entries(appData.episodeProgress).forEach(([key, value]) => {
-          if (key.startsWith('epprog_') && typeof value === 'string') localStorage.setItem(key, value);
         });
       }
 
@@ -4978,7 +4969,7 @@
   <div class="sp-sec">Data</div>
   <div class="sp-row" style="flex-direction:column;align-items:flex-start;gap:0.4rem">
     <button class="sp-btn-d" onclick="clearCW()" aria-label="Clear continue watching history">Clear continue watching</button>
-    <button class="sp-btn-d" onclick="clearHistory()" aria-label="Clear all episode watch progress">Clear all watch progress</button>
+    <button class="sp-btn-d" onclick="clearHistory()" aria-label="Clear all watched episode markers">Clear watched episodes</button>
     <button class="sp-btn-d" onclick="clearList()" aria-label="Clear your entire anime list">Clear my list</button>
     <button class="sp-btn-e" onclick="exportList()">Export list as JSON</button>
     <button class="sp-btn-e" onclick="exportAllData()">Export all data</button>
@@ -5557,7 +5548,7 @@
 
 <footer class="footer">
   <span class="footer-suggest">Have suggestions? Email <a href="mailto:thecatime@gmail.com">thecatime@gmail.com</a></span>
-  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v3.19</footer>
+  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v3.20</footer>
   <!-- Ya i added a cat emoticon in the footer deal with it :P -->
 
     <script>
@@ -5756,9 +5747,9 @@
       }
 
       function clearHistory() {
-        if (!confirm('Clear all episode watch progress? This cannot be undone.')) return;
-        Object.keys(localStorage).filter(k => k.startsWith('w_') || k.startsWith('epprog_')).forEach(k => localStorage.removeItem(k));
-        toast('Watch history cleared');
+        if (!confirm('Clear all watched episode markers? This cannot be undone.')) return;
+        Object.keys(localStorage).filter(k => k.startsWith('w_')).forEach(k => localStorage.removeItem(k));
+        toast('Watched episodes cleared');
       }
 
       function clearList() {
@@ -5868,7 +5859,6 @@
         CatimeFeatures.closeDetailDrawer();
         const iframe = document.querySelector('#playerBox iframe');
         if (id !== 'watch' && iframe) {
-          CatimeFeatures.flushEpisodeProgress();
           pausedSrc = iframe.src;
           iframe.src = 'about:blank';
         } else if (id === 'watch' && pausedSrc) {
@@ -6885,28 +6875,19 @@
         return getComputedStyle(document.documentElement).getPropertyValue('--accent').trim().replace('#', '') || 'c9b8f5';
       }
 
-      function buildPlayerEmbedUrl(anilistId, epNum, mode, source, resumeAt) {
+      function buildPlayerEmbedUrl(anilistId, epNum, mode, source) {
         const id = Number(anilistId);
         const ep = Number(epNum);
-        const minResume = CatimeStorage.PROG_MIN_SEC || 15;
-        const maxResume = CatimeStorage.PROG_MAX_SEC || 14400;
-        const resume = Math.min(Math.max(0, Number(resumeAt) || 0), maxResume);
 
         if (source === 'videasy') {
-          const params = new URLSearchParams();
-          params.set('color', playerAccentHex());
-          if (resume >= minResume) params.set('progress', String(resume));
-          const qs = params.toString();
-          return `https://player.videasy.net/anime/${id}/${ep}${qs ? `?${qs}` : ''}`;
+          return `https://player.videasy.net/anime/${id}/${ep}?color=${encodeURIComponent(playerAccentHex())}`;
         }
 
-        const urlBase = source === 'animepahe'
-          ? `https://vidnest.fun/animepahe/${id}/${ep}/${mode}`
-          : `https://vidnest.fun/anime/${id}/${ep}/${mode}`;
-        if (resume < minResume) return urlBase;
-        const playerParams = new URLSearchParams();
-        playerParams.set('startAt', String(resume));
-        return `${urlBase}?${playerParams.toString()}`;
+        if (source === 'animepahe') {
+          return `https://vidnest.fun/animepahe/${id}/${ep}/${mode}`;
+        }
+
+        return `https://vidnest.fun/anime/${id}/${ep}/${mode}`;
       }
 
       function syncSourceButtons() {
@@ -6920,7 +6901,6 @@
 
       function loadPlayer(epNum, epTitle, idx, total) {
         if (!curAnime) return;
-        CatimeFeatures.flushEpisodeProgress();
         const storageId = curAnime.id;
         curEp = epNum;
         CatimeFeatures.updateRoute('watch', storageId, epNum, curDS);
@@ -6930,19 +6910,15 @@
 
         if (watchTitleEl) watchTitleEl.textContent = curAnime.title;
 
-        const resumeAt = CatimeStorage.getEpisodeProgress(storageId, epNum);
-        const resumeLabel = resumeAt > 0
-          ? ` · Resuming at ${Math.floor(resumeAt / 60)}:${String(resumeAt % 60).padStart(2, '0')}`
-          : '';
-        if (watchMetaEl) watchMetaEl.textContent = `Episode ${idx} of ${total} · ${curDS.toUpperCase()}${resumeLabel}`;
+        if (watchMetaEl) watchMetaEl.textContent = `Episode ${idx} of ${total} · ${curDS.toUpperCase()}`;
 
         const mode = curDS === 'dub' ? 'dub' : 'sub';
-        const url = buildPlayerEmbedUrl(storageId, epNum, mode, curSource, resumeAt);
+        const url = buildPlayerEmbedUrl(storageId, epNum, mode, curSource);
 
         if (playerBoxEl) {
           playerBoxEl.innerHTML = `<iframe src="${url}" frameborder="0" scrolling="no" allowfullscreen allow="autoplay; fullscreen; encrypted-media" style="width:100%;height:100%;border:none" title="${sanitizeHTML(epTitle)}"></iframe>`;
         }
-        CatimeFeatures.onPlayerLoad(storageId, epNum);
+        CatimeFeatures.onPlayerLoad();
         CatimeStorage.updateContinueWatching(storageId, epNum);
         syncWatchedBtn();
 
@@ -6982,7 +6958,6 @@
         }
 
         CatimeStorage.updateContinueWatching(id, ep);
-        CatimeStorage.clearEpisodeProgress(id, ep);
         if (typeof markLocalAppDataModified === 'function') markLocalAppDataModified();
       }
 

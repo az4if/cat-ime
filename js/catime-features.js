@@ -125,7 +125,7 @@
   }
 
   async function fetchMediaById(id) {
-    const q = `query($id: Int){ Media(id: $id) { id idMal isAdult title { english romaji } description(asHtml: false) episodes averageScore status format season seasonYear genres startDate { year } coverImage { large extraLarge } bannerImage trailer { id site } } }`;
+    const q = `query($id: Int){ Media(id: $id) { id idMal isAdult title { english romaji } description(asHtml: false) episodes averageScore status format season seasonYear genres startDate { year } nextAiringEpisode { episode } coverImage { large extraLarge } bannerImage trailer { id site } } }`;
     const d = await global.CatimeApi.fetchGraphQL(q, { id: Number(id) });
     return d?.data?.Media || null;
   }
@@ -135,7 +135,7 @@
       id: m.id,
       malId: m.idMal,
       title: m.title.english || m.title.romaji || 'Unknown',
-      eps: m.episodes || 24,
+      eps: m.episodes ?? m.nextAiringEpisode?.episode ?? null,
       score: m.averageScore ? (m.averageScore / 10).toFixed(1) : '?',
       img: m.coverImage?.large,
       banner: m.bannerImage || null,
@@ -341,7 +341,7 @@
         id: m.id,
         malId: m.idMal,
         title: m.title.english || m.title.romaji || 'Unknown',
-        eps: m.episodes || 24,
+        eps: m.episodes ?? m.nextAiringEpisode?.episode ?? null,
         score: m.averageScore ? (m.averageScore / 10).toFixed(1) : '?',
         img: m.coverImage.large,
         dubbed: true,

@@ -2577,6 +2577,29 @@
     overflow-y: auto
   }
 
+  .ep-divider {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    padding: 0.4rem 0.65rem;
+    margin-top: 0.35rem;
+    font-family: 'Syne', sans-serif;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--text2);
+    background: var(--bg2);
+    border-bottom: 1px solid rgba(var(--accent-rgb), 0.15);
+    border-radius: 6px 6px 0 0;
+    user-select: none;
+    pointer-events: none
+  }
+
+  .ep-divider:first-child {
+    margin-top: 0
+  }
+
   .epi {
     display: flex;
     align-items: center;
@@ -5546,7 +5569,7 @@
 
 <footer class="footer">
   <span class="footer-suggest">Have suggestions? Email <a href="mailto:thecatime@gmail.com">thecatime@gmail.com</a></span>
-  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v3.21</footer>
+  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v3.22</footer>
   <!-- Ya i added a cat emoticon in the footer deal with it :P -->
 
     <script>
@@ -5850,6 +5873,16 @@
         localStorage.setItem('pref_source', curSource);
       }
       let curGenre = '';
+      const NON_ANIME_FORMATS = new Set(['MANGA', 'NOVEL', 'MANHWA']);
+
+      function isWatchableMedia(entry) {
+        const m = entry?.node || entry?.media || entry?.mediaRecommendation || entry;
+        if (!m || m.isAdult) return false;
+        if (m.type && m.type !== 'ANIME') return false;
+        if (m.format && NON_ANIME_FORMATS.has(m.format)) return false;
+        return true;
+      }
+
       let loggedIn = false;
       let countdownTimer = null;
       let pausedSrc = null;
@@ -5962,7 +5995,8 @@
           if (it.media.format === 'MOVIE' || it.media.isAdult) return;
           const isUnread = it.airingAt > lastRead;
           if (isUnread) unreadCount++;
-          const t = it.media.title.english || it.media.title.romaji;
+          const rawTitle = it.media.title.english || it.media.title.romaji || 'Unknown';
+          const t = sanitizeHTML(rawTitle);
           const since = Math.floor((it.airingAt - Date.now() / 1000) / 60);
           let timeStr;
           if (since <= 0) timeStr = 'soon';
@@ -5970,9 +6004,10 @@
           else if (since < 1440) timeStr = `in ${Math.floor(since / 60)}h`;
           else timeStr = `in ${Math.floor(since / 1440)}d`;
 
-          const obj = { id: it.media.id, malId: it.media.idMal, title: t.replace(/'/g, "\\'"), eps: 24, dubbed: true, img: it.media.coverImage.large };
+          const obj = { id: it.media.id, malId: it.media.idMal, title: rawTitle, img: it.media.coverImage.large, dubbed: true };
+          const objJson = JSON.stringify(obj).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
 
-          list.innerHTML += `<div class="ni ${isUnread ? 'unread' : ''}" onclick="watchAnime({id:${obj.id},malId:${obj.malId || obj.id},title:'${obj.title}',eps:24,dubbed:true})">
+          list.innerHTML += `<div class="ni ${isUnread ? 'unread' : ''}" onclick='watchAnime(${objJson})'>
       ${isUnread ? '<div class="nid"></div>' : '<div style="width:6px;flex-shrink:0"></div>'}
       <div><div class="nit"><strong>${t}</strong> Ep ${it.episode} airing soon!</div><div class="nts">${timeStr}</div></div>
     </div>`;
@@ -5996,7 +6031,7 @@
         card.setAttribute('aria-label', `Watch ${a.title}`);
         const imgEl = a.img ? `<img src="${a.img}" alt="" loading="lazy" onerror="this.style.display='none'">` : '';
         const badge = a.dubbed ? '<span class="ab db">DUB</span>' : '<span class="ab sb">SUB</span>';
-        card.innerHTML = `<div class="acard-thumb">${imgEl}<div class="thumb-ov"><div class="play-chip"><div class="play-tri"></div></div></div>${badge}</div><div class="acard-info"><div class="acard-title" title="${a.title}">${a.title}</div><div class="acard-meta"><span class="score">${a.score}</span><span>${a.eps} ep</span></div></div>`;
+        card.innerHTML = `<div class="acard-thumb">${imgEl}<div class="thumb-ov"><div class="play-chip"><div class="play-tri"></div></div></div>${badge}</div><div class="acard-info"><div class="acard-title" title="${a.title}">${a.title}</div><div class="acard-meta"><span class="score">${a.score}</span><span>${a.eps ?? '?'} ep</span></div></div>`;
         card.onclick = () => watchAnime(a);
         card.onkeydown = (e) => {
           if (e.key === 'Enter' || e.key === ' ') {
@@ -6059,7 +6094,7 @@
           id: m.id,
           malId: m.idMal,
           title: m.title.english || m.title.romaji || "Unknown Title",
-          eps: m.nextAiringEpisode ? m.nextAiringEpisode.episode - 1 : m.episodes || 24,
+          eps: m.episodes ?? (m.nextAiringEpisode?.episode ?? null),
           score: m.averageScore ? (m.averageScore / 10).toFixed(1) : '?',
           img: m.coverImage.large,
           banner: m.bannerImage || null,
@@ -6308,12 +6343,38 @@
         watchAnime(randomAnime);
       }
 
+      async function resolveEpisodeCount(animeId, malId, fallback = 12) {
+        const q = `query($id: Int) { Media(id: $id) { episodes nextAiringEpisode { episode } } }`;
+        try {
+          const data = await CatimeApi.fetchGraphQL(q, { id: animeId });
+          const m = data?.data?.Media;
+          if (m?.episodes) return m.episodes;
+          if (m?.nextAiringEpisode?.episode > 0) return m.nextAiringEpisode.episode;
+        } catch (e) {
+          console.warn('AniList episode count lookup failed:', e);
+        }
+
+        if (malId) {
+          try {
+            const res = await fetch(`https://api.jikan.moe/v4/anime/${malId}`);
+            if (res.ok) {
+              const d = await res.json();
+              if (d?.data?.episodes) return d.data.episodes;
+            }
+          } catch (e) {
+            console.warn('Jikan episode count lookup failed:', e);
+          }
+        }
+
+        return fallback;
+      }
+
       function watchAnime(a, opts = {}) {
         curAnime = a;
         const startEp = Math.max(1, Number(opts.ep) || 1);
         curEp = startEp;
-        const epCount = a.eps || a.episodes || 12;
-        curAnime.eps = epCount;
+        const initialEps = a.eps ?? a.episodes ?? 12;
+        curAnime.eps = initialEps;
 
         if (opts.audio === 'sub' || opts.audio === 'dub') {
           curDS = opts.audio;
@@ -6326,36 +6387,77 @@
         document.getElementById('watchTitle').textContent = a.title;
         document.getElementById('watchMeta').textContent = 'Loading episodes...';
         clearCountdown();
-        buildEpList(a, epCount, []);
-        loadPlayer(startEp, `Episode ${startEp}`, startEp, epCount);
+        buildEpList(a, initialEps, []);
+        loadPlayer(startEp, `Episode ${startEp}`, startEp, initialEps);
         updateFollowBtn();
         fetchSeasons(a.id);
         fetchAiringInfo(a.id);
-        fetchEpisodeTitles(a.id, a, epCount);
         fetchSimilarAnime(a.id);
         CatimeFeatures.syncWatchPageExtras();
         syncWatchedBtn();
+
+        void (async () => {
+          const epCount = await resolveEpisodeCount(a.id, a.malId || a.idMal, initialEps);
+          if (!curAnime || curAnime.id !== a.id) return;
+          curAnime.eps = epCount;
+          buildEpList(curAnime, epCount, window._lastEpTitles || []);
+          fetchEpisodeTitles(a.id, curAnime, epCount);
+          const watchMetaEl = document.getElementById('watchMeta');
+          if (watchMetaEl && curEp) {
+            watchMetaEl.textContent = `Episode ${curEp} of ${epCount} · ${curDS.toUpperCase()}`;
+          }
+        })();
       }
+
+      let fetchEpisodeTitlesSeq = 0;
 
       async function fetchEpisodeTitles(id, a, epCount) {
         const malId = a.malId || a.idMal;
         if (!malId) return;
+        const seq = ++fetchEpisodeTitlesSeq;
         try {
-          const pages = Math.ceil(epCount / 100);
-          let allEps = [];
-          for (let p = 1; p <= Math.min(pages, 15); p++) {
-            const res = await fetch(`https://api.jikan.moe/v4/anime/${malId}/episodes?page=${p}`);
-            // yup jikan api for episode titles, no anilist endpoint for this :(
-            const d = await res.json();
-            if (!d.data) break;
-            allEps = allEps.concat(d.data);
-            if (!d.pagination?.has_next_page) break;
+          const titlesByEp = {};
+          let page = 1;
+          let hasNext = true;
+
+          while (hasNext && page <= 60) {
+            let d = null;
+            for (let attempt = 0; attempt < 4; attempt++) {
+              const res = await fetch(`https://api.jikan.moe/v4/anime/${malId}/episodes?page=${page}`);
+              if (res.status === 429) {
+                await new Promise(r => setTimeout(r, 900 * (attempt + 1)));
+                continue;
+              }
+              d = await res.json();
+              break;
+            }
+            if (!d?.data?.length) break;
+
+            for (const ep of d.data) {
+              if (ep.mal_id > 0) titlesByEp[ep.mal_id] = ep;
+            }
+            hasNext = Boolean(d.pagination?.has_next_page);
+            page++;
+            if (hasNext) await new Promise(r => setTimeout(r, 400));
           }
-          if (!allEps.length) return;
-          if (curAnime && curAnime.id === id) {
-            buildEpList(a, epCount, allEps);
+
+          if (!Object.keys(titlesByEp).length) return;
+
+          const epNums = Object.keys(titlesByEp).map(Number);
+          const maxFetched = epNums.length ? Math.max(...epNums) : 0;
+          const totalEps = Math.max(epCount, maxFetched);
+
+          const epTitles = [];
+          for (let i = 1; i <= totalEps; i++) {
+            epTitles.push(titlesByEp[i] || null);
           }
-        } catch (e) { }
+
+          if (seq !== fetchEpisodeTitlesSeq || !curAnime || curAnime.id !== id) return;
+          curAnime.eps = totalEps;
+          buildEpList(a, totalEps, epTitles);
+        } catch (e) {
+          console.warn('Episode titles fetch failed:', e);
+        }
       }
 
       async function fetchAiringInfo(animeId) {
@@ -6370,12 +6472,6 @@
           if (!d.data?.Media || curAnime?.id !== animeId) return;
           const nae = d.data.Media.nextAiringEpisode;
           if (nae) {
-            const airedCount = nae.episode - 1;
-            if (airedCount > 0 && airedCount < curAnime.eps) {
-              curAnime.eps = airedCount;
-              buildEpList(curAnime, airedCount, []);
-              fetchEpisodeTitles(animeId, curAnime, airedCount);
-            }
             const secsUntil = nae.airingAt - Math.floor(Date.now() / 1000);
             if (secsUntil > 0 && secsUntil <= 7 * 24 * 3600) {
               startCountdown(nae.episode, nae.airingAt);
@@ -6442,22 +6538,22 @@
         let allSeasons = [];
         
         // Method 1: Use relations (any format, not just TV)
-        const q1 = `query($id: Int){ Media(id: $id) { title { english romaji } relations { edges { relationType node { id idMal title { romaji english } format episodes averageScore coverImage { large } isAdult } } } } }`;
+        const q1 = `query($id: Int){ Media(id: $id) { title { english romaji } relations { edges { relationType node { id idMal type format title { romaji english } episodes averageScore coverImage { large } isAdult } } } } }`;
         try {
           const res1 = await fetch('https://graphql.anilist.co', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q1, variables: { id } }) });
           const d1 = await res1.json();
           console.log('Relations data:', d1);
           
           if (d1.data) {
-            const rels = d1.data.Media.relations.edges.filter(e => !e.node.isAdult);
-            console.log('All relations (no format filter):', rels.length);
+            const rels = d1.data.Media.relations.edges.filter(e => isWatchableMedia(e));
+            console.log('All relations (anime only):', rels.length);
             
             rels.forEach(r => {
               allSeasons.push({
                 id: r.node.id,
                 malId: r.node.idMal,
                 title: r.node.title.english || r.node.title.romaji || 'Unknown',
-                eps: r.node.episodes || 12,
+                eps: r.node.episodes ?? null,
                 score: r.node.averageScore ? (r.node.averageScore / 10).toFixed(1) : '?',
                 img: r.node.coverImage.large || '',
                 relationType: r.relationType,
@@ -6475,7 +6571,7 @@
         const baseTitle = extractBaseTitle(curAnime.title);
         console.log('Base title for search:', baseTitle);
         
-        const q2 = `query($search: String) { Page(page: 1, perPage: 50) { media(search: $search, type: ANIME, isAdult: false) { id idMal title { english romaji } episodes averageScore coverImage { large } } } }`;
+        const q2 = `query($search: String) { Page(page: 1, perPage: 50) { media(search: $search, type: ANIME, isAdult: false) { id idMal type format title { english romaji } episodes averageScore coverImage { large } } } }`;
         try {
           const res2 = await fetch('https://graphql.anilist.co', { 
             method: 'POST', 
@@ -6493,12 +6589,12 @@
               // Very loose matching - just check if base title is in the title
               const isSeason = title.includes(baseLower) || baseLower.includes(title.split(/\s+/)[0]);
               
-              if (isSeason && !allSeasons.find(s => s.id === m.id)) {
+              if (isSeason && isWatchableMedia(m) && !allSeasons.find(s => s.id === m.id)) {
                 allSeasons.push({
                   id: m.id,
                   malId: m.idMal,
                   title: m.title.english || m.title.romaji || 'Unknown',
-                  eps: m.episodes || 12,
+                  eps: m.episodes ?? null,
                   score: m.averageScore ? (m.averageScore / 10).toFixed(1) : '?',
                   img: m.coverImage.large || '',
                   relationType: 'SEARCH',
@@ -6557,18 +6653,18 @@
       }
 
       async function fetchSimilarAnime(id) {
-        const q = `query($id: Int){ Media(id: $id) { recommendations { edges { node { mediaRecommendation { id idMal isAdult title { english romaji } episodes averageScore coverImage { large } bannerImage } } } } } }`;
+        const q = `query($id: Int){ Media(id: $id) { recommendations { edges { node { mediaRecommendation { id idMal type format isAdult title { english romaji } episodes averageScore coverImage { large } bannerImage } } } } } }`;
         try {
           const res = await fetch('https://graphql.anilist.co', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q, variables: { id } }) });
           const d = await res.json();
           if (d.data && d.data.Media.recommendations.edges.length > 0) {
-            const similar = d.data.Media.recommendations.edges.filter(e => !e.node.mediaRecommendation.isAdult).slice(0, 6).map(e => {
+            const similar = d.data.Media.recommendations.edges.filter(e => isWatchableMedia(e.node.mediaRecommendation)).slice(0, 6).map(e => {
               const m = e.node.mediaRecommendation;
               return {
                 id: m.id,
                 malId: m.idMal,
                 title: m.title.english || m.title.romaji || "Unknown Title",
-                eps: m.episodes || 24,
+                eps: m.episodes ?? null,
                 score: m.averageScore ? (m.averageScore / 10).toFixed(1) : '?',
                 img: m.coverImage.large,
                 banner: m.bannerImage || null,
@@ -6688,14 +6784,14 @@
           return;
         }
 
-        const q = `query($ids: [Int]){ Page(page:1, perPage:50){ media(id_in: $ids, isAdult: false){ id idMal title { english romaji } episodes averageScore coverImage { large } } } }`;
+        const q = `query($ids: [Int]){ Page(page:1, perPage:50){ media(id_in: $ids, isAdult: false){ id idMal title { english romaji } episodes averageScore coverImage { large } nextAiringEpisode { episode } } } }`;
         try {
           const res = await fetch('https://graphql.anilist.co', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q, variables: { ids: f } }) });
           const d = await res.json();
           if (d.data) {
             myListCache = d.data.Page.media.map(m => {
               const rawTitle = m.title.english || m.title.romaji || 'Unknown';
-              const totalEps = m.episodes || 24;
+              const totalEps = m.episodes ?? m.nextAiringEpisode?.episode ?? 1;
               const watched = JSON.parse(localStorage.getItem('w_' + m.id) || '[]');
               const savedStat = localStorage.getItem('stat_' + m.id) || 'sw';
               const scoreNum = m.averageScore ? m.averageScore / 10 : 0;
@@ -6753,7 +6849,7 @@
               const t = sanitizeHTML(rawTitle);
               const airingDate = new Date(s.airingAt * 1000);
               const timeStr = airingDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-              const obj = { id: s.media.id, malId: s.media.idMal, title: rawTitle, eps: 24, dubbed: true, img: s.media.coverImage.large };
+              const obj = { id: s.media.id, malId: s.media.idMal, title: rawTitle, img: s.media.coverImage.large, dubbed: true };
 
               grid.innerHTML += `<div class="calendar-item" onclick='watchAnime(${JSON.stringify(obj).replace(/</g, '\\u003c').replace(/>/g, '\\u003e')})'>
                 <div class="calendar-thumb"><img src="${s.media.coverImage.large}" loading="lazy"></div>
@@ -6783,6 +6879,12 @@
         if (curAnime && curAnime.id === id) updateFollowBtn();
       }
 
+      const EP_DIVIDER_SIZE = 100;
+
+      function getEpListItem(epNum) {
+        return document.querySelector(`#epList .epi[data-ep="${epNum}"]`);
+      }
+
       function buildEpList(a, epCount, epTitles = []) {
         window._lastEpTitles = epTitles;
         const list = document.getElementById('epList');
@@ -6792,17 +6894,29 @@
         const epCntEl = document.getElementById('epCnt');
         if (epCntEl) epCntEl.textContent = total + ' eps';
         const watched = new Set(JSON.parse(localStorage.getItem('w_' + a.id) || '[]'));
-        for (let i = 1; i <= total; i++) {
-          const item = document.createElement('div');
-          item.className = 'epi' + (watched.has(i) ? ' done' : '') + (i === 1 ? ' cur' : '');
+        const padLen = Math.max(2, String(total).length);
+        const useDividers = total > EP_DIVIDER_SIZE;
 
-          let rawTitle = epTitles[i - 1] ? (epTitles[i - 1].title || '') : '';
+        for (let i = 1; i <= total; i++) {
+          if (useDividers && (i === 1 || (i - 1) % EP_DIVIDER_SIZE === 0)) {
+            const blockEnd = Math.min(i + EP_DIVIDER_SIZE - 1, total);
+            const divider = document.createElement('div');
+            divider.className = 'ep-divider';
+            divider.textContent = `Episodes ${i}–${blockEnd}`;
+            list.appendChild(divider);
+          }
+
+          const item = document.createElement('div');
+          item.className = 'epi' + (watched.has(i) ? ' done' : '') + (i === curEp ? ' cur' : '');
+          item.dataset.ep = String(i);
+
+          let rawTitle = epTitles[i - 1]?.title || '';
           rawTitle = rawTitle.replace(/^Episode\s+\d+\s*[-:–]\s*/i, '').trim();
           const epLabelRaw = rawTitle || `Episode ${i}`;
           const epLabel = sanitizeHTML(epLabelRaw);
 
           const epN = i;
-          item.innerHTML = `<div class="en">${String(i).padStart(2, '0')}</div><div class="ei"><div class="enm" title="${epLabel}">${epLabel}</div></div>${watched.has(i) ? '<div class="etick" aria-label="Watched"></div>' : ''}`;
+          item.innerHTML = `<div class="en">${String(i).padStart(padLen, '0')}</div><div class="ei"><div class="enm" title="${epLabel}">${epLabel}</div></div>${watched.has(i) ? '<div class="etick" aria-label="Watched"></div>' : ''}`;
           item.onclick = () => {
             document.querySelectorAll('.epi').forEach(e => e.classList.remove('cur'));
             item.classList.add('cur');
@@ -6810,11 +6924,12 @@
           };
           list.appendChild(item);
         }
-        // Restore current episode highlight
-        const items = list.querySelectorAll('.epi');
-        if (items[curEp - 1]) {
-          items.forEach(e => e.classList.remove('cur'));
-          items[curEp - 1].classList.add('cur');
+
+        const curItem = getEpListItem(curEp);
+        if (curItem) {
+          document.querySelectorAll('.epi').forEach(e => e.classList.remove('cur'));
+          curItem.classList.add('cur');
+          curItem.scrollIntoView({ block: 'nearest' });
         }
       }
 
@@ -6826,15 +6941,14 @@
           toast('No next episode');
           return;
         }
-        const nextEp = curEp + 1;
-        const epItems = document.querySelectorAll('#epList .epi');
-        if (epItems[nextEp - 1]) epItems[nextEp - 1].click();
+        const nextItem = getEpListItem(curEp + 1);
+        if (nextItem) nextItem.click();
       }
 
       function goPrevEpisode() {
         if (!curAnime || curEp <= 1) { toast('No previous episode'); return; }
-        const epItems = document.querySelectorAll('#epList .epi');
-        if (epItems[curEp - 2]) epItems[curEp - 2].click();
+        const prevItem = getEpListItem(curEp - 1);
+        if (prevItem) prevItem.click();
       }
 
       function addCurrentToQueue() {
@@ -6912,12 +7026,12 @@
         CatimeStorage.updateContinueWatching(storageId, epNum);
         syncWatchedBtn();
 
-        const epsList = document.getElementById('epList');
-        if (epsList && epsList.children[idx - 1]) {
+        const item = getEpListItem(idx);
+        if (item) {
           const watched = new Set(JSON.parse(localStorage.getItem('w_' + storageId) || '[]'));
           document.querySelectorAll('#epList .epi').forEach((e) => e.classList.remove('cur'));
-          const item = epsList.children[idx - 1];
           item.classList.add('cur');
+          item.scrollIntoView({ block: 'nearest' });
           if (watched.has(epNum)) {
             item.classList.add('done');
             if (!item.querySelector('.etick')) {
@@ -6979,7 +7093,7 @@
           toast('Episode marked watched');
         }
         syncWatchedBtn();
-        const epItem = document.getElementById('epList')?.children[curEp - 1];
+        const epItem = getEpListItem(curEp);
         if (epItem) {
           const isWatched = new Set(JSON.parse(localStorage.getItem('w_' + id) || '[]')).has(curEp);
           epItem.classList.toggle('done', isWatched);
@@ -7017,7 +7131,7 @@
         CatimeUI.setStatus('cwStatus', 'Loading continue watching...');
 
         const ids = cw.map(x => x.id);
-        const q = `query($ids: [Int]){ Page(page:1, perPage:10){ media(id_in: $ids, isAdult: false){ id idMal title { english romaji } episodes averageScore coverImage { large } } } }`;
+        const q = `query($ids: [Int]){ Page(page:1, perPage:10){ media(id_in: $ids, isAdult: false){ id idMal title { english romaji } episodes averageScore coverImage { large } nextAiringEpisode { episode } } } }`;
 
         try {
           const d = await CatimeApi.fetchGraphQL(q, { ids });
@@ -7034,9 +7148,9 @@
             rendered++;
             const rawTitle = m.title.english || m.title.romaji || 'Unknown';
             const t = sanitizeHTML(rawTitle);
-            const total = m.episodes || 24;
+            const total = m.episodes ?? m.nextAiringEpisode?.episode ?? Math.max(item.ep, 1);
             const pct = Math.min(100, (item.ep / total) * 100);
-            const obj = { id: m.id, malId: m.idMal, title: rawTitle, eps: total, img: m.coverImage.large, dubbed: true, score: m.averageScore ? (m.averageScore / 10).toFixed(1) : '?' };
+            const obj = { id: m.id, malId: m.idMal, title: rawTitle, eps: m.episodes ?? m.nextAiringEpisode?.episode ?? null, img: m.coverImage.large, dubbed: true, score: m.averageScore ? (m.averageScore / 10).toFixed(1) : '?' };
 
             scroll.innerHTML += `<div class="cw-card" onclick='resumeAnime(${JSON.stringify(obj).replace(/</g, '\\u003c').replace(/>/g, '\\u003e')}, ${item.ep})'>
              <div class="cw-thumb">
@@ -7082,7 +7196,7 @@
         CatimeUI.renderSkeletonScroll('recScroll', 6);
         CatimeUI.setStatus('recStatus', 'Loading recommendations...');
 
-        const q = `query($ids: [Int]){ Page(page:1, perPage:15){ media(id_in: $ids, isAdult: false){ recommendations { edges { node { mediaRecommendation { id idMal title { english romaji } episodes averageScore coverImage { large } bannerImage } } } } } } }`;
+        const q = `query($ids: [Int]){ Page(page:1, perPage:15){ media(id_in: $ids, isAdult: false){ recommendations { edges { node { mediaRecommendation { id idMal type format isAdult title { english romaji } episodes averageScore coverImage { large } bannerImage } } } } } } }`;
 
         try {
           const d = await CatimeApi.fetchGraphQL(q, { ids: sourceIds });
@@ -7100,12 +7214,12 @@
             if (m.recommendations && m.recommendations.edges) {
               m.recommendations.edges.slice(0, 10).forEach(e => {
                 const rec = e.node.mediaRecommendation;
-                if (rec && !excludeIds.has(rec.id) && !allRecs.find(r => r.id === rec.id)) {
+                if (rec && isWatchableMedia(rec) && !excludeIds.has(rec.id) && !allRecs.find(r => r.id === rec.id)) {
                   allRecs.push({
                     id: rec.id,
                     malId: rec.idMal,
                     title: rec.title.english || rec.title.romaji || 'Unknown Title',
-                    eps: rec.episodes || 24,
+                    eps: rec.episodes ?? null,
                     score: rec.averageScore ? (rec.averageScore / 10).toFixed(1) : '?',
                     img: rec.coverImage.large,
                     banner: rec.bannerImage || null,

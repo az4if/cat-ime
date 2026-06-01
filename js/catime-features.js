@@ -435,7 +435,11 @@
   function getPlayerSources() {
     return Array.isArray(global.PLAYER_SOURCES) && global.PLAYER_SOURCES.length
       ? global.PLAYER_SOURCES
-      : ['megaplay', 'vidnest', 'animepahe', 'vidlink'];
+      : [
+          'megaplay',
+          // 'vidnest',
+          // 'animepahe',
+        ];
   }
 
   function rotateSource() {

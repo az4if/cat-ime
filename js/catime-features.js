@@ -432,16 +432,25 @@
     }, 18000);
   }
 
-  const PLAYER_SOURCES = ['vidnest', 'animepahe'];
+  function getPlayerSources() {
+    return Array.isArray(global.PLAYER_SOURCES) && global.PLAYER_SOURCES.length
+      ? global.PLAYER_SOURCES
+      : ['megaplay', 'vidnest', 'animepahe', 'vidlink'];
+  }
 
   function rotateSource() {
     if (typeof global.setSrc !== 'function') return;
-    const cur = PLAYER_SOURCES.includes(localStorage.getItem('pref_source'))
+    const sources = getPlayerSources();
+    const cur = sources.includes(localStorage.getItem('pref_source'))
       ? localStorage.getItem('pref_source')
-      : 'vidnest';
-    const next = PLAYER_SOURCES[(PLAYER_SOURCES.indexOf(cur) + 1) % PLAYER_SOURCES.length];
+      : 'megaplay';
+    const next = sources[(sources.indexOf(cur) + 1) % sources.length];
     global.setSrc(next);
-    if (typeof global.toast === 'function') global.toast('Switched to ' + next);
+    const label =
+      typeof global.getPlayerSourceLabel === 'function'
+        ? global.getPlayerSourceLabel(next)
+        : next;
+    if (typeof global.toast === 'function') global.toast('Switched to ' + label);
   }
 
   async function pickRandomFromList() {

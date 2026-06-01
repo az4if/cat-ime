@@ -2563,10 +2563,92 @@
     font-family: 'Syne', sans-serif;
     font-size: 0.83rem;
     font-weight: 700;
-    margin-bottom: 0.55rem;
+    margin-bottom: 0.6rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(var(--accent-rgb), 0.1);
     display: flex;
     align-items: center;
-    justify-content: space-between
+    justify-content: space-between;
+    gap: 0.5rem
+  }
+
+  .ep-col-title {
+    letter-spacing: 0.02em
+  }
+
+  .ep-col-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-left: auto;
+    padding: 0.28rem 0.45rem 0.28rem 0.55rem;
+    background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.07), rgba(var(--accent-rgb), 0.02));
+    border: 1px solid rgba(var(--accent-rgb), 0.14);
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12)
+  }
+
+  .ep-section-jump {
+    display: none;
+    min-width: 6.5rem;
+    max-width: 8.5rem;
+    padding: 0.38rem 1.85rem 0.38rem 0.6rem;
+    border-radius: 8px;
+    border: 1px solid rgba(var(--accent-rgb), 0.22);
+    background-color: var(--bg2);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23a090d8' d='M2.5 4.5 6 8l3.5-3.5'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.5rem center;
+    background-size: 0.7rem;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s
+  }
+
+  .ep-section-jump.is-visible {
+    display: block
+  }
+
+  .ep-section-jump:hover {
+    border-color: rgba(var(--accent-rgb), 0.4);
+    background-color: var(--bg3)
+  }
+
+  .ep-section-jump:focus {
+    outline: none;
+    border-color: rgba(var(--accent-rgb), 0.55);
+    box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.18)
+  }
+
+  .ep-cnt {
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text2);
+    padding: 0.28rem 0.55rem;
+    background: rgba(var(--accent-rgb), 0.1);
+    border: 1px solid rgba(var(--accent-rgb), 0.16);
+    border-radius: 999px;
+    white-space: nowrap
+  }
+
+  .ep-season-select {
+    display: none;
+    max-width: 140px;
+    padding: 0.38rem 0.55rem;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg3);
+    color: var(--text);
+    font-size: 0.7rem;
+    cursor: pointer
   }
 
   .ep-list {
@@ -2575,29 +2657,6 @@
     gap: 3px;
     max-height: 500px;
     overflow-y: auto
-  }
-
-  .ep-divider {
-    position: sticky;
-    top: 0;
-    z-index: 2;
-    padding: 0.4rem 0.65rem;
-    margin-top: 0.35rem;
-    font-family: 'Syne', sans-serif;
-    font-size: 0.62rem;
-    font-weight: 700;
-    letter-spacing: 0.07em;
-    text-transform: uppercase;
-    color: var(--text2);
-    background: var(--bg2);
-    border-bottom: 1px solid rgba(var(--accent-rgb), 0.15);
-    border-radius: 6px 6px 0 0;
-    user-select: none;
-    pointer-events: none
-  }
-
-  .ep-divider:first-child {
-    margin-top: 0
   }
 
   .epi {
@@ -3836,6 +3895,23 @@
     
     .ep-list {
       max-height: 400px;
+    }
+
+    .ep-col-actions {
+      padding: 0.22rem 0.35rem;
+      gap: 0.35rem
+    }
+
+    .ep-section-jump {
+      min-width: 5.5rem;
+      max-width: 7rem;
+      font-size: 0.65rem;
+      padding-right: 1.6rem
+    }
+
+    .ep-cnt {
+      font-size: 0.62rem;
+      padding: 0.22rem 0.45rem
     }
     
     .epi {
@@ -5356,9 +5432,17 @@
       </div>
     </div>
     <div>
-      <div class="ep-col-hd">Episodes <select id="seasonSelect" onchange="switchSeason(this.value)"
-          style="display:none;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:3px;font-size:0.7rem;max-width:140px;margin-left:auto;margin-right:8px;cursor:pointer"></select><span
-          id="epCnt" style="font-size:0.7rem;color:var(--text3);font-weight:400"></span></div>
+      <div class="ep-col-hd">
+        <span class="ep-col-title">Episodes</span>
+        <span class="ep-col-actions">
+          <select id="epSectionJump" class="ep-section-jump" aria-label="Jump to episode section"
+            onchange="jumpToEpSection(this.value)">
+            <option value="">Sections</option>
+          </select>
+          <select id="seasonSelect" class="ep-season-select" onchange="switchSeason(this.value)"></select>
+          <span id="epCnt" class="ep-cnt"></span>
+        </span>
+      </div>
       <div class="ep-list" id="epList">
         <div style="padding:2rem;text-align:center;color:var(--text3);font-size:0.82rem">Select an anime to load
           episodes</div>
@@ -5569,7 +5653,7 @@
 
 <footer class="footer">
   <span class="footer-suggest">Have suggestions? Email <a href="mailto:thecatime@gmail.com">thecatime@gmail.com</a></span>
-  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v3.23</footer>
+  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v3.24</footer>
   <!-- Ya i added a cat emoticon in the footer deal with it :P -->
 
     <script>
@@ -5907,6 +5991,7 @@
 
         if (id !== 'watch') {
           clearCountdown();
+          syncEpSectionJump(0);
           CatimeFeatures.updateRoute(id === 'home' ? null : id);
         }
         if (id === 'home') {
@@ -6880,9 +6965,52 @@
       }
 
       const EP_DIVIDER_SIZE = 100;
+      const EP_LIST_GAP = 3;
 
       function getEpListItem(epNum) {
         return document.querySelector(`#epList .epi[data-ep="${epNum}"]`);
+      }
+
+      function scrollEpListToEpisode(epNum) {
+        const list = document.getElementById('epList');
+        const item = getEpListItem(epNum);
+        if (!list || !item) return;
+        let y = 0;
+        for (let sib = item.previousElementSibling; sib; sib = sib.previousElementSibling) {
+          y += sib.offsetHeight + EP_LIST_GAP;
+        }
+        const max = Math.max(0, list.scrollHeight - list.clientHeight);
+        list.scrollTop = Math.max(0, Math.min(y, max));
+      }
+
+      function syncEpSectionJump(total) {
+        const sel = document.getElementById('epSectionJump');
+        if (!sel) return;
+        sel.innerHTML = '<option value="">Sections</option>';
+        sel.classList.remove('is-visible');
+        if (total <= EP_DIVIDER_SIZE) return;
+        sel.classList.add('is-visible');
+        for (let start = 1; start <= total; start += EP_DIVIDER_SIZE) {
+          const end = Math.min(start + EP_DIVIDER_SIZE - 1, total);
+          const opt = document.createElement('option');
+          opt.value = String(start);
+          opt.textContent = `${start}–${end}`;
+          sel.appendChild(opt);
+        }
+        updateEpSectionJumpSelect(total);
+      }
+
+      function updateEpSectionJumpSelect(total) {
+        const sel = document.getElementById('epSectionJump');
+        if (!sel || total <= EP_DIVIDER_SIZE) return;
+        const blockStart = 1 + Math.floor((curEp - 1) / EP_DIVIDER_SIZE) * EP_DIVIDER_SIZE;
+        sel.value = String(blockStart);
+      }
+
+      function jumpToEpSection(startVal) {
+        const start = Number(startVal);
+        if (!start) return;
+        scrollEpListToEpisode(start);
       }
 
       function buildEpList(a, epCount, epTitles = []) {
@@ -6895,17 +7023,8 @@
         if (epCntEl) epCntEl.textContent = total + ' eps';
         const watched = new Set(JSON.parse(localStorage.getItem('w_' + a.id) || '[]'));
         const padLen = Math.max(2, String(total).length);
-        const useDividers = total > EP_DIVIDER_SIZE;
 
         for (let i = 1; i <= total; i++) {
-          if (useDividers && (i === 1 || (i - 1) % EP_DIVIDER_SIZE === 0)) {
-            const blockEnd = Math.min(i + EP_DIVIDER_SIZE - 1, total);
-            const divider = document.createElement('div');
-            divider.className = 'ep-divider';
-            divider.textContent = `Episodes ${i}–${blockEnd}`;
-            list.appendChild(divider);
-          }
-
           const item = document.createElement('div');
           item.className = 'epi' + (watched.has(i) ? ' done' : '') + (i === curEp ? ' cur' : '');
           item.dataset.ep = String(i);
@@ -6925,11 +7044,13 @@
           list.appendChild(item);
         }
 
+        syncEpSectionJump(total);
+
         const curItem = getEpListItem(curEp);
         if (curItem) {
           document.querySelectorAll('.epi').forEach(e => e.classList.remove('cur'));
           curItem.classList.add('cur');
-          curItem.scrollIntoView({ block: 'nearest' });
+          scrollEpListToEpisode(curEp);
         }
       }
 
@@ -7031,7 +7152,8 @@
           const watched = new Set(JSON.parse(localStorage.getItem('w_' + storageId) || '[]'));
           document.querySelectorAll('#epList .epi').forEach((e) => e.classList.remove('cur'));
           item.classList.add('cur');
-          item.scrollIntoView({ block: 'nearest' });
+          scrollEpListToEpisode(idx);
+          updateEpSectionJumpSelect(total);
           if (watched.has(epNum)) {
             item.classList.add('done');
             if (!item.querySelector('.etick')) {
@@ -7902,6 +8024,7 @@
       window.setSrc = setSrc;
       window.setDS = setDS;
       window.watchAnime = watchAnime;
+      window.jumpToEpSection = jumpToEpSection;
       window.goPage = goPage;
       window.refreshCwAndRecommendations = refreshCwAndRecommendations;
       Object.defineProperty(window, 'curAnime', { get() { return curAnime; }, configurable: true });

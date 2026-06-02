@@ -1820,12 +1820,12 @@
     font-size: 0.88rem;
     line-height: 1.6;
     margin-bottom: 1.1rem;
-    max-width: 390px;
+    max-width: 520px;
     display: -webkit-box;
     -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: 3;
     overflow: hidden;
-    min-height: calc(0.88rem * 1.6 * 2)
+    min-height: calc(0.88rem * 1.6 * 3)
   }
 
   .hbtns {
@@ -3643,7 +3643,7 @@
     .hsub {
       font-size: 0.85rem;
       margin-bottom: 1rem;
-      min-height: calc(0.85rem * 1.6 * 2)
+      min-height: calc(0.85rem * 1.6 * 3)
     }
     
     .hbtns {
@@ -3825,7 +3825,7 @@
     
     .hsub {
       font-size: 0.8rem;
-      min-height: calc(0.8rem * 1.6 * 2)
+      min-height: calc(0.8rem * 1.6 * 3)
     }
     
     /* Grids - smaller cards on mobile */
@@ -5676,7 +5676,7 @@
 
 <footer class="footer">
   <span class="footer-suggest">Have suggestions? Email <a href="mailto:thecatime@gmail.com">thecatime@gmail.com</a></span>
-  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v3.27</footer>
+  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v4.0</footer>
   <!-- Ya i added a cat emoticon in the footer deal with it :P -->
 
     <script>
@@ -6205,6 +6205,11 @@
         appendGrid(id, list);
       }
 
+      function stripAnimeDescription(raw) {
+        if (!raw) return '';
+        return String(raw).replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+      }
+
       function normalizeAnimeList(media) {
         const deduplicated = media.filter(m => {
           const t = m.title.english || m.title.romaji || "";
@@ -6217,6 +6222,7 @@
           title: m.title.english || m.title.romaji || "Unknown Title",
           eps: m.episodes ?? (m.nextAiringEpisode?.episode ?? null),
           score: m.averageScore ? (m.averageScore / 10).toFixed(1) : '?',
+          description: stripAnimeDescription(m.description),
           img: m.coverImage.large,
           banner: m.bannerImage || null,
           dubbed: true
@@ -6239,6 +6245,7 @@
         nextAiringEpisode { episode }
         averageScore
         popularity
+        description(asHtml: false)
         coverImage { large }
         bannerImage
         }
@@ -7498,7 +7505,7 @@
         const watchBtn = document.getElementById('heroWatchBtn');
         if (!item || !tag || !title || !sub || !inner) return;
         title.textContent = item.title;
-        sub.textContent = `Score ${item.score} · ${item.eps} episodes · Click to watch`;
+        sub.textContent = item.description || 'Press Watch to start streaming this series.';
         inner.classList.add('hero-clickable');
         inner.setAttribute('role', 'button');
         inner.setAttribute('tabindex', '0');

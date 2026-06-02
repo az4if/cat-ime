@@ -1,4 +1,4 @@
-const CACHE = 'catime-v17';
+const CACHE = 'catime-v18';
 const ASSETS = ['./', './index.html', './dmca.html', './dmca/index.html', './js/catime-api.js', './js/catime-storage.js', './js/catime-ui.js', './js/catime-features.js'];
 
 function isHtmlRequest(url) {

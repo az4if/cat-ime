@@ -49,10 +49,11 @@
   }
   
   // Account system
-  window.CATIME_ACCOUNT_BUILD = 'account-fix-2026-05-20-2';
+  window.CATIME_ACCOUNT_BUILD = 'account-switch-fix-2026-05-24';
   const APP_SYNC_TS_KEY = 'appData_syncedAt';
   const APP_LOCAL_MOD_KEY = 'appData_localModifiedAt';
   const LAST_ACCOUNT_ID_KEY = 'lastSignedInUserId';
+  const NEEDS_CLOUD_PULL_KEY = 'appData_needsCloudPull';
   let appDataTableAvailable = null;
   let suppressAutoSync = 0;
   let autoSyncTimer = null;
@@ -384,11 +385,23 @@
     document.dispatchEvent(new CustomEvent('catime-appdata-changed'));
   }
 
-  function applySyncedAppData(appData) {
+  function clearWatchProgressKeys() {
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.startsWith('w_') || key.startsWith('stat_'))) keysToRemove.push(key);
+    }
+    keysToRemove.forEach((key) => localStorage.removeItem(key));
+  }
+
+  function applySyncedAppData(appData, options = {}) {
     if (!appData || typeof appData !== 'object') return false;
+    const { replaceWatchKeys = false } = options;
 
     suppressAutoSync++;
     try {
+      if (replaceWatchKeys) clearWatchProgressKeys();
+
       if (Array.isArray(appData.cw)) localStorage.setItem('cw', JSON.stringify(appData.cw));
       if (Array.isArray(appData.followed)) localStorage.setItem('followed', JSON.stringify(appData.followed));
 
@@ -459,14 +472,29 @@
     }
   }
 
-  function didAccountChange(userId) {
+  function isDifferentSignedInAccount(userId) {
     if (!userId) return false;
     const prev = localStorage.getItem(LAST_ACCOUNT_ID_KEY);
-    return Boolean(prev && prev !== userId);
+    return prev !== userId;
   }
 
   function rememberSignedInAccount(userId) {
     if (userId) localStorage.setItem(LAST_ACCOUNT_ID_KEY, userId);
+  }
+
+  function markNeedsCloudPullOnSignOut() {
+    localStorage.setItem(NEEDS_CLOUD_PULL_KEY, '1');
+  }
+
+  function consumeNeedsCloudPull() {
+    const needs = localStorage.getItem(NEEDS_CLOUD_PULL_KEY) === '1';
+    if (needs) localStorage.removeItem(NEEDS_CLOUD_PULL_KEY);
+    return needs;
+  }
+
+  function cancelPendingAutoSync() {
+    clearTimeout(autoSyncTimer);
+    autoSyncTimer = null;
   }
 
   async function refreshCurrentUserFromServer() {
@@ -494,32 +522,43 @@
     const { silent = false } = options;
     if (!currentUser) return false;
 
-    const accountChanged = didAccountChange(currentUser.id);
-    if (accountChanged) {
+    cancelPendingAutoSync();
+
+    const accountChanged = isDifferentSignedInAccount(currentUser.id);
+    const needsPullAfterSignOut = consumeNeedsCloudPull();
+    const forceAccountLoad = accountChanged || needsPullAfterSignOut;
+
+    if (forceAccountLoad) {
+      appDataTableAvailable = null;
       clearLocalAppData();
     }
-    rememberSignedInAccount(currentUser.id);
 
     const { data: remoteAppData } = await getRemoteAppData();
     const remoteTs = getTimestampMs(remoteAppData?.syncedAt);
     const syncedTs = getTimestampMs(localStorage.getItem(APP_SYNC_TS_KEY));
     const localModTs = getTimestampMs(localStorage.getItem(APP_LOCAL_MOD_KEY));
 
-    if (accountChanged) {
+    if (forceAccountLoad) {
+      rememberSignedInAccount(currentUser.id);
       if (remoteAppData) {
-        applySyncedAppData(remoteAppData);
+        applySyncedAppData(remoteAppData, { replaceWatchKeys: true });
       }
       notifyAppDataChanged();
       if (!silent) {
-        toast(remoteAppData ? 'Switched account — loaded your saved data.' : 'Switched account.');
+        const msg = accountChanged
+          ? (remoteAppData ? 'Switched account — loaded your saved data.' : 'Switched account.')
+          : (remoteAppData ? 'Loaded your saved data.' : 'Signed in.');
+        toast(msg);
       }
       return true;
     }
 
+    rememberSignedInAccount(currentUser.id);
+
     // Last-write-wins: pull if cloud is newer than local edits, push if local is newer
     if (remoteAppData && (!hasLocalAppData() || remoteTs > localModTs)) {
       if (remoteTs > syncedTs || !hasLocalAppData()) {
-        applySyncedAppData(remoteAppData);
+        applySyncedAppData(remoteAppData, { replaceWatchKeys: true });
         notifyAppDataChanged();
         if (!silent) toast('Loaded your synced list and progress.');
         return true;
@@ -771,8 +810,9 @@
     try {
       await supabaseClient.auth.signOut();
       currentUser = null;
+      cancelPendingAutoSync();
       clearLocalAppData();
-      localStorage.removeItem(LAST_ACCOUNT_ID_KEY);
+      markNeedsCloudPullOnSignOut();
       notifyAppDataChanged();
       toast('Signed out');
       await updateAuthUI();
@@ -1412,8 +1452,9 @@
         hideAccountModal();
         await updateAuthUI();
       } else if (event === 'SIGNED_OUT') {
+        cancelPendingAutoSync();
         clearLocalAppData();
-        localStorage.removeItem(LAST_ACCOUNT_ID_KEY);
+        markNeedsCloudPullOnSignOut();
         notifyAppDataChanged();
         toast('Signed out');
         await updateAuthUI();
@@ -5952,7 +5993,7 @@
 
 <footer class="footer">
   <span class="footer-suggest">Have suggestions? Email <a href="mailto:thecatime@gmail.com">thecatime@gmail.com</a></span>
-  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v4.4</footer>
+  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v4.5</footer>
   <!-- Ya i added a cat emoticon in the footer deal with it :P -->
 
     <script>

@@ -5,7 +5,6 @@
   const QUEUE_KEY = 'watch_queue';
   const WATCH_DAYS_KEY = 'watch_days';
   const RATINGS_KEY = 'user_ratings';
-  const NOTES_KEY = 'user_notes';
 
   function parseJSON(key, fb) {
     try {
@@ -48,24 +47,12 @@
     return parseJSON(RATINGS_KEY, {});
   }
 
-  function getNotes() {
-    return parseJSON(NOTES_KEY, {});
-  }
-
   function setRating(id, score) {
     const r = getRatings();
     const n = Number(score);
     if (n > 0) r[id] = n;
     else delete r[id];
     localStorage.setItem(RATINGS_KEY, JSON.stringify(r));
-    if (typeof global.markLocalAppDataModified === 'function') global.markLocalAppDataModified();
-  }
-
-  function setNote(id, text) {
-    const n = getNotes();
-    if (text && text.trim()) n[id] = text.trim().slice(0, 500);
-    else delete n[id];
-    localStorage.setItem(NOTES_KEY, JSON.stringify(n));
     if (typeof global.markLocalAppDataModified === 'function') global.markLocalAppDataModified();
   }
 
@@ -196,7 +183,6 @@
       const descPreview = isDescTruncated ? fullDesc.slice(0, descPreviewLimit) : fullDesc;
       const descSafe = global.sanitizeHTML ? global.sanitizeHTML(descPreview) : descPreview;
       const userRate = getRatings()[m.id] || '';
-      const userNote = getNotes()[m.id] || '';
       const objJson = JSON.stringify(card).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
       body.innerHTML = `
         <div class="detail-hero" style="background-image:url(${m.bannerImage || m.coverImage?.large || ''})"></div>
@@ -219,7 +205,7 @@
                 ${[10, 9, 8, 7, 6, 5, 4, 3, 2, 1].map((n) => `<option value="${n}" ${userRate == n ? 'selected' : ''}>${n}/10</option>`).join('')}
               </select>
             </div>
-            <textarea class="detail-note" id="detailNoteInput" placeholder="Personal notes..." maxlength="500" onblur="CatimeFeatures.saveDetailNote(${m.id}, this.value)">${global.sanitizeHTML ? global.sanitizeHTML(userNote) : userNote}</textarea>
+            <p class="detail-comments-note">Episode comments are on the <strong>Watch</strong> page for each episode.</p>
           </div>
         </div>`;
       const descEl = body.querySelector('.detail-desc.detail-desc-truncated');
@@ -257,19 +243,12 @@
     if (typeof global.loadMyList === 'function') global.loadMyList();
   }
 
-  function saveDetailNote(id, val) {
-    setNote(id, val);
-    if (typeof global.toast === 'function') global.toast('Note saved');
-  }
-
   function syncWatchPageExtras() {
     const anime = getWatchState().anime;
     if (!anime) return;
     const id = anime.id;
     const rateEl = document.getElementById('watchRateSelect');
-    const noteEl = document.getElementById('watchNoteInput');
     if (rateEl) rateEl.value = getRatings()[id] || '';
-    if (noteEl) noteEl.value = getNotes()[id] || '';
   }
 
   function getWatchState() {
@@ -555,7 +534,6 @@
     removeFromQueue,
     playNextInQueue,
     saveDetailRating,
-    saveDetailNote,
     syncWatchPageExtras,
     bulkMarkWatched,
     loadStatsPage,
@@ -567,11 +545,9 @@
     pickRandomFromList,
     enhanceMakeCard,
     getRatings,
-    getNotes,
     getQueue,
     QUEUE_KEY,
     WATCH_DAYS_KEY,
-    RATINGS_KEY,
-    NOTES_KEY
+    RATINGS_KEY
   };
 })(window);

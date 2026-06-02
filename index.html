@@ -27,6 +27,7 @@
 <script src="js/catime-api.js"></script>
 <script src="js/catime-ui.js"></script>
 <script src="js/catime-features.js"></script>
+<script src="js/catime-comments.js"></script>
 <script>
   // Initialize Supabase
   let supabaseClient;
@@ -56,6 +57,8 @@
   let autoSyncTimer = null;
   let autoSyncInFlight = false;
   let currentUser = null;
+  window.getSupabaseClient = () => supabaseClient;
+  window.getCurrentUser = () => currentUser;
   let hasSeenAccountPrompt = localStorage.getItem('hasSeenAccountPrompt');
 
   function parseLocalJSON(key, fallback) {
@@ -235,7 +238,6 @@
       custom_theme: localStorage.getItem('custom_theme') || '',
       lastReadNotif: localStorage.getItem('lastReadNotif') || '',
       ratings: localStorage.getItem('user_ratings') || '',
-      notes: localStorage.getItem('user_notes') || '',
       watch_queue: localStorage.getItem('watch_queue') || '',
       watch_days: localStorage.getItem('watch_days') || ''
     };
@@ -361,7 +363,7 @@
 
   function isAppDataStorageKey(key) {
     return key === 'cw' || key === 'followed' || key === 'lastReadNotif' || key === 'custom_theme' ||
-      key === 'user_ratings' || key === 'user_notes' || key === 'watch_queue' || key === 'watch_days' ||
+      key === 'user_ratings' || key === 'watch_queue' || key === 'watch_days' ||
       key.startsWith('w_') || key.startsWith('stat_') || key.startsWith('pref_');
   }
 
@@ -417,7 +419,6 @@
       }
 
       if (typeof appData.ratings === 'string') localStorage.setItem('user_ratings', appData.ratings);
-      if (typeof appData.notes === 'string') localStorage.setItem('user_notes', appData.notes);
       if (typeof appData.watch_queue === 'string') localStorage.setItem('watch_queue', appData.watch_queue);
       if (typeof appData.watch_days === 'string') localStorage.setItem('watch_days', appData.watch_days);
 
@@ -1316,10 +1317,7 @@
         authInitialized = true;
         await mergeRemoteAppData({ silent: true });
         await updateAuthUI();
-        return;
-      }
-
-      if (event === 'SIGNED_IN' && session?.user) {
+      } else if (event === 'SIGNED_IN' && session?.user) {
       // Ensure user has a profile (for OAuth users)
         const { data: profile, error: profileError } = await withTimeout(
           supabaseClient
@@ -1378,6 +1376,12 @@
         await updateAuthUI();
       } else {
         await updateAuthUI();
+      }
+      if (window.CatimeComments) {
+        CatimeComments.syncCommentFormState();
+        if (curAnime && document.getElementById('page-watch')?.classList.contains('active')) {
+          CatimeComments.loadWatchPanel(curAnime.id, curEp);
+        }
       }
       } catch (err) {
         console.error('Auth state handler failed:', err);
@@ -5004,7 +5008,8 @@
   .bulk-row button:hover { border-color: var(--accent); color: var(--accent); }
 
   .watch-extras { margin-top: 0.65rem; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
-  .watch-extras select, .watch-extras textarea {
+  .watch-extras select,
+  .ep-comments-form textarea {
     background: var(--bg3);
     border: 1px solid var(--border);
     color: var(--text);
@@ -5012,7 +5017,159 @@
     font-size: 0.72rem;
     padding: 0.3rem 0.45rem;
   }
-  .watch-extras textarea { flex: 1; min-width: 160px; min-height: 32px; resize: none; font-family: inherit; }
+  .ep-comments {
+    margin-top: 0.85rem;
+    padding: 0.75rem;
+    border-radius: 10px;
+    border: 1px solid rgba(var(--accent-rgb), 0.12);
+    background: rgba(var(--accent-rgb), 0.04);
+  }
+
+  .ep-comments-hd {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.55rem;
+  }
+
+  .ep-comments-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .ep-comments-meta {
+    font-size: 0.68rem;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .ep-comments-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    max-height: 220px;
+    overflow-y: auto;
+    margin-bottom: 0.6rem;
+    padding-right: 0.15rem;
+  }
+
+  .ep-comments-status {
+    font-size: 0.78rem;
+    color: var(--text3);
+    padding: 0.35rem 0;
+  }
+
+  .ep-comment {
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-start;
+  }
+
+  .ep-comment-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    object-fit: cover;
+    background: var(--bg3);
+  }
+
+  .ep-comment-avatar--initial {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .ep-comment-main {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .ep-comment-hd {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.5rem;
+    margin-bottom: 0.15rem;
+  }
+
+  .ep-comment-user {
+    font-size: 0.76rem;
+    color: var(--text);
+  }
+
+  .ep-comment-time {
+    font-size: 0.68rem;
+    color: var(--text3);
+  }
+
+  .ep-comment-text {
+    margin: 0;
+    font-size: 0.8rem;
+    line-height: 1.45;
+    color: var(--text2);
+    word-break: break-word;
+  }
+
+  .ep-comment-del {
+    margin-left: auto;
+    border: none;
+    background: none;
+    color: var(--text3);
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0 0.2rem;
+  }
+
+  .ep-comment-del:hover {
+    color: #f87171;
+  }
+
+  .ep-comments-form {
+    display: flex;
+    gap: 0.45rem;
+    align-items: flex-end;
+  }
+
+  .ep-comments-form textarea {
+    flex: 1;
+    min-height: 52px;
+    max-height: 120px;
+    resize: vertical;
+    font-family: inherit;
+    font-size: 0.8rem;
+    padding: 0.45rem 0.55rem;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg3);
+    color: var(--text);
+  }
+
+  .ep-comments-form textarea:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  .ep-comments-form .btn-p {
+    flex-shrink: 0;
+    padding: 0.45rem 0.9rem;
+    font-size: 0.78rem;
+  }
+
+  .detail-comments-note {
+    font-size: 0.78rem;
+    color: var(--text2);
+    line-height: 1.5;
+    margin: 0.5rem 0 0;
+  }
 
   .queue-list { display: flex; flex-direction: column; gap: 0.35rem; max-height: 180px; overflow-y: auto; }
   .queue-item { display: flex; align-items: center; gap: 0.5rem; font-size: 0.78rem; background: var(--bg3); padding: 0.4rem 0.55rem; border-radius: 6px; }
@@ -5509,8 +5666,20 @@
             <option value="6">6</option><option value="5">5</option><option value="4">4</option><option value="3">3</option>
             <option value="2">2</option><option value="1">1</option>
           </select>
-          <textarea id="watchNoteInput" name="watchNote" aria-label="Quick note" placeholder="Quick note…" maxlength="500" onblur="saveWatchNote(this.value)"></textarea>
         </div>
+        <section class="ep-comments" id="watchCommentsPanel" aria-label="Episode comments">
+          <div class="ep-comments-hd">
+            <span class="ep-comments-title">Comments</span>
+            <span class="ep-comments-meta" id="watchCommentsMeta"></span>
+          </div>
+          <div class="ep-comments-list" id="watchCommentsList">
+            <div class="ep-comments-status">Open an episode to see comments.</div>
+          </div>
+          <form class="ep-comments-form" id="watchCommentsForm">
+            <textarea id="watchCommentInput" maxlength="1000" rows="2" aria-label="Episode comment"></textarea>
+            <button type="submit" class="btn-p" id="watchCommentSubmit">Post</button>
+          </form>
+        </section>
         <div id="epCountdown" style="display:none;margin-top:0.6rem;font-size:0.78rem;color:var(--accent);font-weight:500;letter-spacing:0.01em"></div>
       </div>
     </div>
@@ -5736,7 +5905,7 @@
 
 <footer class="footer">
   <span class="footer-suggest">Have suggestions? Email <a href="mailto:thecatime@gmail.com">thecatime@gmail.com</a></span>
-  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v4.2</footer>
+  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v4.3</footer>
   <!-- Ya i added a cat emoticon in the footer deal with it :P -->
 
     <script>
@@ -6001,7 +6170,7 @@
             // Check for required keys to ensure it's a valid backup
             const hasValidKeys = Object.keys(data).some(key =>
               key.startsWith('cw') || key.startsWith('w_') || key.startsWith('followed') || key.startsWith('stat_') || key.startsWith('pref_') ||
-              key === 'user_ratings' || key === 'user_notes' || key === 'watch_queue' || key === 'watch_days'
+              key === 'user_ratings' || key === 'watch_queue' || key === 'watch_days'
             );
 
             if (!hasValidKeys && Object.keys(data).length > 0) {
@@ -7251,11 +7420,6 @@
         CatimeFeatures.saveDetailRating(curAnime.id, val);
       }
 
-      function saveWatchNote(val) {
-        if (!curAnime) return;
-        CatimeFeatures.saveDetailNote(curAnime.id, val);
-      }
-
       function toggleAutoFailover() {
         const on = localStorage.getItem('pref_autofailover') !== 'false';
         localStorage.setItem('pref_autofailover', on ? 'false' : 'true');
@@ -7379,6 +7543,9 @@
         CatimeFeatures.onPlayerLoad();
         CatimeStorage.updateContinueWatching(storageId, epNum);
         syncWatchedBtn();
+        if (window.CatimeComments) {
+          CatimeComments.loadWatchPanel(storageId, epNum);
+        }
 
         const item = getEpListItem(idx);
         if (item) {
@@ -8295,6 +8462,12 @@
       Object.defineProperty(window, 'curEp', { get() { return curEp; }, configurable: true });
 
       CatimeFeatures.init();
+      if (window.CatimeComments) {
+        CatimeComments.init(
+          () => curAnime,
+          () => curEp
+        );
+      }
 
       const spAF = document.getElementById('spAutoFailover');
       if (spAF) {

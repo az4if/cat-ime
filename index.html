@@ -6131,7 +6131,7 @@
 
 <footer class="footer">
   <span class="footer-suggest">Have suggestions? Email <a href="mailto:thecatime@gmail.com">thecatime@gmail.com</a></span>
-  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v4.10</footer>
+  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v4.11</footer>
   <!-- Ya i added a cat emoticon in the footer deal with it :P -->
 
     <script>
@@ -6682,23 +6682,45 @@
         return String(raw).replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
       }
 
+      function truncateHeroDescription(text, maxLen = 200) {
+        const clean = stripAnimeDescription(text);
+        if (!clean || clean.length <= maxLen) return clean;
+        const slice = clean.slice(0, maxLen);
+        const lastSpace = slice.lastIndexOf(' ');
+        const cut = lastSpace > maxLen * 0.55 ? slice.slice(0, lastSpace) : slice;
+        return cut.trimEnd() + '…';
+      }
+
+      function getHeroSubtitle(item) {
+        const blurb = item.description ? truncateHeroDescription(item.description) : '';
+        if (blurb) return blurb;
+        const parts = [];
+        if (item.score && item.score !== '?') parts.push(`★ ${item.score}`);
+        if (item.eps) parts.push(`${item.eps} episodes`);
+        if (parts.length) return parts.join(' · ');
+        return 'Trending now — open details for the full synopsis.';
+      }
+
       function normalizeAnimeList(media) {
         const deduplicated = media.filter(m => {
           const t = m.title.english || m.title.romaji || "";
           return !/ (Season [2-9]|Part [2-9]|Cour [2-9]|2nd|3rd|4th|5th|6th)($| )/i.test(t);
         });
 
-        return deduplicated.map(m => ({
-          id: m.id,
-          malId: m.idMal,
-          title: m.title.english || m.title.romaji || "Unknown Title",
-          eps: m.episodes ?? (m.nextAiringEpisode?.episode ?? null),
-          score: m.averageScore ? (m.averageScore / 10).toFixed(1) : '?',
-          description: stripAnimeDescription(m.description),
-          img: m.coverImage.large,
-          banner: m.bannerImage || null,
-          dubbed: true
-        }));
+        return deduplicated.map(m => {
+          const desc = stripAnimeDescription(m.description);
+          return {
+            id: m.id,
+            malId: m.idMal,
+            title: m.title.english || m.title.romaji || "Unknown Title",
+            eps: m.episodes ?? (m.nextAiringEpisode?.episode ?? null),
+            score: m.averageScore ? (m.averageScore / 10).toFixed(1) : '?',
+            ...(desc ? { description: desc } : {}),
+            img: m.coverImage.large,
+            banner: m.bannerImage || null,
+            dubbed: true
+          };
+        });
       }
 
       function scheduleIdleTask(fn, timeoutMs = 3000) {
@@ -8063,8 +8085,10 @@
         const inner = document.getElementById('heroInner');
         const watchBtn = document.getElementById('heroWatchBtn');
         if (!item || !tag || !title || !sub || !inner) return;
+        tag.innerHTML = 'Featured <span class="hero-tag-cat">&gt;⩊&lt;</span>';
         title.textContent = item.title;
-        sub.textContent = item.description || 'Click here for full details about this anime.';
+        const subtitle = getHeroSubtitle(item);
+        sub.textContent = subtitle || 'Trending now.';
         inner.classList.remove('hero-clickable');
         inner.removeAttribute('role');
         inner.removeAttribute('tabindex');
@@ -8076,7 +8100,13 @@
         sub.classList.add('hero-desc-link');
         sub.setAttribute('role', 'button');
         sub.setAttribute('tabindex', '0');
-        sub.setAttribute('aria-label', `View details for ${item.title}`);
+        const fullDesc = item.description || '';
+        sub.setAttribute(
+          'aria-label',
+          fullDesc.length > 200
+            ? `Synopsis preview for ${item.title}. View full details.`
+            : `View details for ${item.title}`
+        );
         if (watchBtn) watchBtn.classList.remove('hero-watch-hidden');
       }
 
@@ -8239,7 +8269,11 @@
         }
 
         trendingLoading = true;
-        const { items, hasNextPage } = await fetchAnilistPage('', '', trendingPage, 25);
+        const heroDesc = trendingPage === 1;
+        const { items, hasNextPage } = await fetchAnilistPage(
+          '', '', trendingPage, 25, '', '', 'TRENDING_DESC',
+          heroDesc ? { includeDescription: true } : {}
+        );
         trendingHasNextPage = hasNextPage;
         const freshItems = items.filter(item => {
           if (trendingSeen.has(item.id)) return false;
@@ -8248,8 +8282,8 @@
         });
 
         if (trendingPage === 1 && freshItems.length) {
+          await enrichHeroDescriptions(freshItems);
           initHeroSlider(freshItems);
-          void enrichHeroDescriptions(freshItems);
         }
 
         if (freshItems.length) appendHorizontalScroll('trendingScroll', freshItems, true);

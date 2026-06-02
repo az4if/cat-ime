@@ -26,4 +26,10 @@ describe('index.html sanity', () => {
     assert.match(html, /importAppBackup/);
     assert.match(html, /CatimeAppData/);
   });
+
+  it('shows truncated hero synopsis with score fallback', () => {
+    assert.match(html, /function getHeroSubtitle/);
+    assert.match(html, /function truncateHeroDescription/);
+    assert.match(html, /sub\.textContent = subtitle \|\| 'Trending now\.'/);
+  });
 });

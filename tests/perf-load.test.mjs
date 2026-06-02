@@ -31,9 +31,11 @@ describe('load performance guards', () => {
     assert.match(html, /CatimeApi\.fetchGraphQL\(q, \{ id \}\)/);
   });
 
-  it('loads hero descriptions in a separate batch', () => {
+  it('loads hero descriptions for page-1 trending and enriches before hero init', () => {
     assert.match(html, /async function enrichHeroDescriptions/);
-    assert.match(html, /void enrichHeroDescriptions\(freshItems\)/);
+    assert.match(html, /heroDesc \? \{ includeDescription: true \}/);
+    assert.match(html, /await enrichHeroDescriptions\(freshItems\)/);
+    assert.match(html, /initHeroSlider\(freshItems\)/);
   });
 
   it('defers recommendations until idle', () => {

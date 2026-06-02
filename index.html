@@ -5875,11 +5875,11 @@
           </div>
           <div class="watch-control-group" aria-label="Episode actions">
             <span class="watch-control-label">Actions</span>
-            <button class="mkb" id="btnW" onclick="toggleWatchedCurrentEp()">Watched</button>
-            <button class="mkb" id="btnMyList" onclick="toggleMyList()">Add to list</button>
-            <button class="mkb" id="btnFollow" onclick="toggleEpisodeFollow()">Follow</button>
-            <button class="mkb" id="btnQueue" onclick="addCurrentToQueue()">+ Queue</button>
-            <button class="mkb" onclick="shareCurrentAnime()">Share</button>
+            <button type="button" class="mkb" id="btnW" onclick="toggleWatchedCurrentEp()">Watched</button>
+            <button type="button" class="mkb" id="btnMyList">Add to list</button>
+            <button type="button" class="mkb" id="btnFollow">Follow</button>
+            <button type="button" class="mkb" id="btnQueue" onclick="addCurrentToQueue()">+ Queue</button>
+            <button type="button" class="mkb" onclick="shareCurrentAnime()">Share</button>
           </div>
         </div>
         <div class="bulk-row">
@@ -6133,7 +6133,7 @@
 
 <footer class="footer">
   <span class="footer-suggest">Have suggestions? Email <a href="mailto:thecatime@gmail.com">thecatime@gmail.com</a></span>
-  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v4.7</footer>
+  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v4.8</footer>
   <!-- Ya i added a cat emoticon in the footer deal with it :P -->
 
     <script>
@@ -6509,6 +6509,9 @@
           } else {
             initSearchScroll();
           }
+        }
+        if (id === 'watch' && window.CatimeFeatures?.syncWatchActionButtons) {
+          CatimeFeatures.syncWatchActionButtons();
         }
         if (id === 'list') {
           loadMyList();
@@ -6985,8 +6988,7 @@
         clearCountdown();
         buildEpList(a, initialEps, []);
         loadPlayer(startEp, `Episode ${startEp}`, startEp, initialEps);
-        updateMyListBtn();
-        updateEpisodeFollowBtn();
+        CatimeFeatures.syncWatchActionButtons(a);
         fetchSeasons(a.id);
         fetchAiringInfo(a.id);
         fetchSimilarAnime(a.id);
@@ -7278,42 +7280,12 @@
       }
 
       function toggleMyList() {
-        if (!curAnime?.id) return;
-        const result = CatimeStorage.toggleMyListId(curAnime.id);
-        updateMyListBtn();
-        toast(result.added ? 'Added to your list' : 'Removed from your list');
-        loadMyList();
+        CatimeFeatures.toggleMyList();
       }
 
       function toggleEpisodeFollow() {
-        if (!curAnime?.id) return;
-        const result = CatimeStorage.toggleEpisodeFollowId(curAnime.id);
-        updateEpisodeFollowBtn();
-        toast(result.added ? 'Following — new episodes will show in notifications' : 'Unfollowed — no episode alerts');
-        fetchNotifications();
-        if (document.getElementById('page-list')?.classList.contains('active')) loadUpcomingCalendar();
+        CatimeFeatures.toggleEpisodeFollow();
       }
-
-      function updateMyListBtn() {
-        if (!curAnime) return;
-        const on = CatimeStorage.isOnMyList(curAnime.id);
-        const b = document.getElementById('btnMyList');
-        if (b) {
-          b.classList.toggle('on', on);
-          b.textContent = on ? 'On list' : 'Add to list';
-        }
-      }
-
-      function updateEpisodeFollowBtn() {
-        if (!curAnime) return;
-        const on = CatimeStorage.isEpisodeFollowed(curAnime.id);
-        const b = document.getElementById('btnFollow');
-        if (b) {
-          b.classList.toggle('on', on);
-          b.textContent = on ? 'Following' : 'Follow';
-        }
-      }
-
 
       let myListCache = [];
 
@@ -7366,7 +7338,7 @@
           const opts = statuses.map(s => `<option value="${s.cls}" ${row.status === s.cls ? 'selected' : ''}>${s.label}</option>`).join('');
           const objJson = JSON.stringify(row.obj).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
           const userRate = ratings[row.id] ? ratings[row.id] + '/10' : '—';
-          return `<tr><td class="tn" onclick='watchAnime(${objJson})'>${row.title}</td><td><select class="sb2 ${row.status}" onchange="changeStat(${row.id}, this)" style="border:none;cursor:pointer">${opts}</select></td><td style="color:var(--text2)">${row.watchedCount}/${row.totalEps}</td><td style="color:var(--yellow)">${row.scoreStr}</td><td style="color:var(--accent)">${userRate}</td><td><button class="lb" onclick="removeFromMyListRow(${row.id}, this)">Remove</button></td></tr>`;
+          return `<tr><td class="tn" onclick='watchAnime(${objJson})'>${row.title}</td><td><select class="sb2 ${row.status}" onchange="changeStat(${row.id}, this)" style="border:none;cursor:pointer">${opts}</select></td><td style="color:var(--text2)">${row.watchedCount}/${row.totalEps}</td><td style="color:var(--yellow)">${row.scoreStr}</td><td style="color:var(--accent)">${userRate}</td><td><button type="button" class="lb" onclick="removeFromMyListRow(${row.id})">Remove</button></td></tr>`;
         }).join('');
       }
 
@@ -7488,12 +7460,12 @@
           grid.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3);font-size:0.82rem">Error loading upcoming releases</div>';
         }
       }
-      function removeFromMyListRow(id, btn) {
+      function removeFromMyListRow(id) {
         CatimeStorage.removeFromMyList(id);
         myListCache = myListCache.filter(row => row.id !== Number(id));
         applyListFilters();
         toast('Removed from list');
-        if (curAnime && Number(curAnime.id) === Number(id)) updateMyListBtn();
+        if (curAnime && Number(curAnime.id) === Number(id)) CatimeFeatures.syncWatchActionButtons(curAnime);
       }
 
       const EP_DIVIDER_SIZE = 100;
@@ -8707,6 +8679,10 @@
       window.PLAYER_SOURCE_LABELS = PLAYER_SOURCE_LABELS;
       window.getPlayerSourceLabel = getPlayerSourceLabel;
       window.watchAnime = watchAnime;
+      window.toggleMyList = toggleMyList;
+      window.toggleEpisodeFollow = toggleEpisodeFollow;
+      window.fetchNotifications = fetchNotifications;
+      window.loadUpcomingCalendar = loadUpcomingCalendar;
       window.jumpToEpSection = jumpToEpSection;
       window.goPage = goPage;
       window.refreshCwAndRecommendations = refreshCwAndRecommendations;

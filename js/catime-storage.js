@@ -45,7 +45,12 @@
   }
 
   function writeIdList(key, ids) {
-    localStorage.setItem(key, JSON.stringify(normalizeIdList(ids)));
+    try {
+      localStorage.setItem(key, JSON.stringify(normalizeIdList(ids)));
+    } catch (err) {
+      console.error('writeIdList failed:', key, err);
+      throw err;
+    }
   }
 
   function migrateLegacyFollowed() {

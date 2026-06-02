@@ -194,9 +194,11 @@
             <div class="detail-genres">${genres}</div>
             <p class="detail-desc${isDescTruncated ? ' detail-desc-truncated' : ''}"${isDescTruncated ? ' role="button" tabindex="0" aria-label="Show full description"' : ''}>${descSafe}${isDescTruncated ? '…' : ''}</p>
             <div class="detail-actions">
-              <button class="btn-p" onclick='closeDetailDrawer(); watchAnime(${objJson})'><span class="icon-play-sm" aria-hidden="true"></span>Watch</button>
-              <button class="mkb" onclick='CatimeFeatures.addToQueue(${objJson})'>+ Queue</button>
-              <button class="mkb" onclick="CatimeFeatures.shareAnime(${m.id})">Share</button>
+              <button type="button" class="btn-p" onclick='closeDetailDrawer(); watchAnime(${objJson})'><span class="icon-play-sm" aria-hidden="true"></span>Watch</button>
+              <button type="button" class="mkb" id="detailBtnMyList" onclick="CatimeFeatures.toggleMyList(${m.id})">Add to list</button>
+              <button type="button" class="mkb" id="detailBtnFollow" onclick="CatimeFeatures.toggleEpisodeFollow(${m.id})">Follow</button>
+              <button type="button" class="mkb" onclick='CatimeFeatures.addToQueue(${objJson})'>+ Queue</button>
+              <button type="button" class="mkb" onclick="CatimeFeatures.shareAnime(${m.id})">Share</button>
             </div>
             <div class="detail-rate">
               <label>Your rating</label>
@@ -211,6 +213,19 @@
       const descEl = body.querySelector('.detail-desc.detail-desc-truncated');
       if (descEl && isDescTruncated) descEl.dataset.fullText = fullDesc;
       bindDetailDescriptionExpand(body);
+      const storage = global.CatimeStorage;
+      const listBtn = body.querySelector('#detailBtnMyList');
+      const followBtn = body.querySelector('#detailBtnFollow');
+      if (storage && listBtn) {
+        const onList = storage.isOnMyList(m.id);
+        listBtn.classList.toggle('on', onList);
+        listBtn.textContent = onList ? 'On list' : 'Add to list';
+      }
+      if (storage && followBtn) {
+        const following = storage.isEpisodeFollowed(m.id);
+        followBtn.classList.toggle('on', following);
+        followBtn.textContent = following ? 'Following' : 'Follow';
+      }
     } catch (e) {
       body.innerHTML = '<div class="detail-loading">Error loading details.</div>';
     }
@@ -243,12 +258,119 @@
     if (typeof global.loadMyList === 'function') global.loadMyList();
   }
 
+  function resolveAnimeId(animeOrId) {
+    const storage = global.CatimeStorage;
+    if (!storage?.normalizeAnimeId) return null;
+    if (animeOrId != null && typeof animeOrId === 'object') {
+      return storage.normalizeAnimeId(animeOrId.id);
+    }
+    return storage.normalizeAnimeId(animeOrId);
+  }
+
+  function syncWatchActionButtons(animeOrId) {
+    const storage = global.CatimeStorage;
+    const id = resolveAnimeId(animeOrId) ?? resolveAnimeId(global.curAnime);
+    const listBtn = document.getElementById('btnMyList');
+    const followBtn = document.getElementById('btnFollow');
+    if (!id || !storage) {
+      if (listBtn) {
+        listBtn.classList.remove('on');
+        listBtn.textContent = 'Add to list';
+      }
+      if (followBtn) {
+        followBtn.classList.remove('on');
+        followBtn.textContent = 'Follow';
+      }
+      return;
+    }
+    if (listBtn) {
+      const onList = storage.isOnMyList(id);
+      listBtn.classList.toggle('on', onList);
+      listBtn.textContent = onList ? 'On list' : 'Add to list';
+    }
+    if (followBtn) {
+      const following = storage.isEpisodeFollowed(id);
+      followBtn.classList.toggle('on', following);
+      followBtn.textContent = following ? 'Following' : 'Follow';
+    }
+  }
+
+  function toggleMyList(animeOrId) {
+    const storage = global.CatimeStorage;
+    if (!storage?.toggleMyListId) {
+      if (typeof global.toast === 'function') global.toast('List unavailable — hard refresh the page');
+      return;
+    }
+    const id = resolveAnimeId(animeOrId) ?? resolveAnimeId(global.curAnime);
+    if (!id) {
+      if (typeof global.toast === 'function') global.toast('Open an anime first');
+      return;
+    }
+    try {
+      const result = storage.toggleMyListId(id);
+      syncWatchActionButtons(id);
+      if (typeof global.toast === 'function') {
+        global.toast(result.added ? 'Added to your list' : 'Removed from your list');
+      }
+      if (typeof global.loadMyList === 'function') global.loadMyList();
+    } catch (err) {
+      console.error('toggleMyList failed:', err);
+      if (typeof global.toast === 'function') global.toast('Could not update your list');
+    }
+  }
+
+  function toggleEpisodeFollow(animeOrId) {
+    const storage = global.CatimeStorage;
+    if (!storage?.toggleEpisodeFollowId) {
+      if (typeof global.toast === 'function') global.toast('Follow unavailable — hard refresh the page');
+      return;
+    }
+    const id = resolveAnimeId(animeOrId) ?? resolveAnimeId(global.curAnime);
+    if (!id) {
+      if (typeof global.toast === 'function') global.toast('Open an anime first');
+      return;
+    }
+    try {
+      const result = storage.toggleEpisodeFollowId(id);
+      syncWatchActionButtons(id);
+      if (typeof global.toast === 'function') {
+        global.toast(
+          result.added
+            ? 'Following — new episodes appear in notifications'
+            : 'Unfollowed — no episode alerts'
+        );
+      }
+      if (typeof global.fetchNotifications === 'function') global.fetchNotifications();
+      if (document.getElementById('page-list')?.classList.contains('active') &&
+          typeof global.loadUpcomingCalendar === 'function') {
+        global.loadUpcomingCalendar();
+      }
+    } catch (err) {
+      console.error('toggleEpisodeFollow failed:', err);
+      if (typeof global.toast === 'function') global.toast('Could not update follow');
+    }
+  }
+
+  function removeFromMyList(animeId) {
+    const storage = global.CatimeStorage;
+    const id = resolveAnimeId(animeId);
+    if (!storage?.removeFromMyList || !id) return;
+    try {
+      storage.removeFromMyList(id);
+      syncWatchActionButtons(id);
+      if (typeof global.toast === 'function') global.toast('Removed from list');
+    } catch (err) {
+      console.error('removeFromMyList failed:', err);
+    }
+  }
+
   function syncWatchPageExtras() {
     const anime = getWatchState().anime;
     if (!anime) return;
     const id = anime.id;
     const rateEl = document.getElementById('watchRateSelect');
     if (rateEl) rateEl.value = getRatings()[id] || '';
+    syncWatchActionButtons(anime);
   }
 
   function getWatchState() {
@@ -500,9 +622,32 @@
     }
   }
 
+  function initWatchActionButtons() {
+    const listBtn = document.getElementById('btnMyList');
+    const followBtn = document.getElementById('btnFollow');
+    if (listBtn && !listBtn.dataset.bound) {
+      listBtn.dataset.bound = '1';
+      listBtn.type = 'button';
+      listBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        toggleMyList();
+      });
+    }
+    if (followBtn && !followBtn.dataset.bound) {
+      followBtn.dataset.bound = '1';
+      followBtn.type = 'button';
+      followBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        toggleEpisodeFollow();
+      });
+    }
+    syncWatchActionButtons();
+  }
+
   function init() {
     registerServiceWorker();
     renderQueuePanel();
+    initWatchActionButtons();
     setTimeout(handleDeepLink, 800);
   }
 
@@ -535,6 +680,10 @@
     playNextInQueue,
     saveDetailRating,
     syncWatchPageExtras,
+    syncWatchActionButtons,
+    toggleMyList,
+    toggleEpisodeFollow,
+    removeFromMyList,
     bulkMarkWatched,
     loadStatsPage,
     loadAiringThisWeek,

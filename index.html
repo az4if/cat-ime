@@ -52,6 +52,7 @@
   window.CATIME_ACCOUNT_BUILD = 'account-fix-2026-05-20-2';
   const APP_SYNC_TS_KEY = 'appData_syncedAt';
   const APP_LOCAL_MOD_KEY = 'appData_localModifiedAt';
+  const LAST_ACCOUNT_ID_KEY = 'lastSignedInUserId';
   let appDataTableAvailable = null;
   let suppressAutoSync = 0;
   let autoSyncTimer = null;
@@ -441,6 +442,33 @@
     );
   }
 
+  function clearLocalAppData() {
+    suppressAutoSync++;
+    try {
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (!key) continue;
+        if (isAppDataStorageKey(key) || key === APP_SYNC_TS_KEY || key === APP_LOCAL_MOD_KEY) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach((key) => localStorage.removeItem(key));
+    } finally {
+      suppressAutoSync--;
+    }
+  }
+
+  function didAccountChange(userId) {
+    if (!userId) return false;
+    const prev = localStorage.getItem(LAST_ACCOUNT_ID_KEY);
+    return Boolean(prev && prev !== userId);
+  }
+
+  function rememberSignedInAccount(userId) {
+    if (userId) localStorage.setItem(LAST_ACCOUNT_ID_KEY, userId);
+  }
+
   async function refreshCurrentUserFromServer() {
     if (!currentUser) return null;
 
@@ -466,10 +494,27 @@
     const { silent = false } = options;
     if (!currentUser) return false;
 
+    const accountChanged = didAccountChange(currentUser.id);
+    if (accountChanged) {
+      clearLocalAppData();
+    }
+    rememberSignedInAccount(currentUser.id);
+
     const { data: remoteAppData } = await getRemoteAppData();
     const remoteTs = getTimestampMs(remoteAppData?.syncedAt);
     const syncedTs = getTimestampMs(localStorage.getItem(APP_SYNC_TS_KEY));
     const localModTs = getTimestampMs(localStorage.getItem(APP_LOCAL_MOD_KEY));
+
+    if (accountChanged) {
+      if (remoteAppData) {
+        applySyncedAppData(remoteAppData);
+      }
+      notifyAppDataChanged();
+      if (!silent) {
+        toast(remoteAppData ? 'Switched account — loaded your saved data.' : 'Switched account.');
+      }
+      return true;
+    }
 
     // Last-write-wins: pull if cloud is newer than local edits, push if local is newer
     if (remoteAppData && (!hasLocalAppData() || remoteTs > localModTs)) {
@@ -645,7 +690,6 @@
         toast(error.message);
       } else {
         currentUser = data.user;
-        localStorage.setItem('lastSignedInUserId', currentUser.id);
         await mergeRemoteAppData({ silent: true });
         hideAccountModal();
         await updateAuthUI();
@@ -727,6 +771,9 @@
     try {
       await supabaseClient.auth.signOut();
       currentUser = null;
+      clearLocalAppData();
+      localStorage.removeItem(LAST_ACCOUNT_ID_KEY);
+      notifyAppDataChanged();
       toast('Signed out');
       await updateAuthUI();
       hideAccountSettings();
@@ -1271,7 +1318,6 @@
       currentUser = data.session?.user || null;
 
       if (currentUser) {
-        localStorage.setItem('lastSignedInUserId', currentUser.id);
         const { data: freshUserData, error: userError } = await withTimeout(
           supabaseClient.auth.getUser(),
           'User restore',
@@ -1310,8 +1356,6 @@
 
     setTimeout(async () => {
       try {
-      if (session?.user) localStorage.setItem('lastSignedInUserId', session.user.id);
-
       // Skip toasts for the initial session restore on page load
       if (event === 'INITIAL_SESSION') {
         authInitialized = true;
@@ -1368,6 +1412,9 @@
         hideAccountModal();
         await updateAuthUI();
       } else if (event === 'SIGNED_OUT') {
+        clearLocalAppData();
+        localStorage.removeItem(LAST_ACCOUNT_ID_KEY);
+        notifyAppDataChanged();
         toast('Signed out');
         await updateAuthUI();
       } else if (event === 'USER_UPDATED' && session?.user) {
@@ -5905,7 +5952,7 @@
 
 <footer class="footer">
   <span class="footer-suggest">Have suggestions? Email <a href="mailto:thecatime@gmail.com">thecatime@gmail.com</a></span>
-  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v4.3</footer>
+  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v4.4</footer>
   <!-- Ya i added a cat emoticon in the footer deal with it :P -->
 
     <script>
@@ -8411,10 +8458,22 @@
         refreshCwAndRecommendations();
       });
 
+      window.refreshPrefsAfterSync = function () {
+        curDS = localStorage.getItem('pref_ds') || 'sub';
+        curSource = normalizePlayerSource(localStorage.getItem('pref_source') || DEFAULT_PLAYER_SOURCE);
+        localStorage.setItem('pref_source', curSource);
+        syncDSButtons();
+        syncSourceSelect();
+        syncPlayerPrefButtons();
+        const savedTheme = getSavedThemeIndex();
+        if (savedTheme >= 0) applyTheme(savedTheme);
+      };
+
       document.addEventListener('catime-appdata-changed', () => {
         refreshCwAndRecommendations();
         loadMyList();
         loadUpcomingCalendar();
+        if (typeof window.refreshPrefsAfterSync === 'function') window.refreshPrefsAfterSync();
         const activePage = document.querySelector('.page.active');
         if (activePage?.id === 'page-home') {
           loadTrending();

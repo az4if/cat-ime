@@ -198,6 +198,122 @@
     }
   }
 
+  function storageValueToString(value) {
+    if (value === null || value === undefined) return null;
+    if (typeof value === 'string') return value;
+    return JSON.stringify(value);
+  }
+
+  function normalizeSyncedAppDataForApply(appData) {
+    if (!appData || typeof appData !== 'object') return appData;
+    const out = { ...appData };
+
+    if (out.watched && typeof out.watched === 'object') {
+      const watched = {};
+      Object.entries(out.watched).forEach(([key, value]) => {
+        if (!key.startsWith('w_')) return;
+        const str = storageValueToString(value);
+        if (str !== null) watched[key] = str;
+      });
+      out.watched = watched;
+    }
+
+    if (out.statuses && typeof out.statuses === 'object') {
+      const statuses = {};
+      Object.entries(out.statuses).forEach(([key, value]) => {
+        if (!key.startsWith('stat_')) return;
+        const str = storageValueToString(value);
+        if (str !== null) statuses[key] = str;
+      });
+      out.statuses = statuses;
+    }
+
+    if (out.preferences && typeof out.preferences === 'object') {
+      const preferences = {};
+      Object.entries(out.preferences).forEach(([key, value]) => {
+        const str = storageValueToString(value);
+        if (str !== null) preferences[key] = str;
+      });
+      out.preferences = preferences;
+    }
+
+    ['ratings', 'watch_queue', 'watch_days', 'custom_theme', 'lastReadNotif'].forEach((field) => {
+      if (out[field] !== undefined && out[field] !== null) {
+        const str = storageValueToString(out[field]);
+        if (str !== null) out[field] = str;
+      }
+    });
+
+    return out;
+  }
+
+  function isStructuredAppBackup(data) {
+    if (!data || typeof data !== 'object') return false;
+    if (data.format === 'cat-ime-backup') return true;
+    return Boolean(
+      data.version >= 1 &&
+      (Array.isArray(data.cw) ||
+        Array.isArray(data.followed) ||
+        (data.watched && typeof data.watched === 'object'))
+    );
+  }
+
+  function isFlatStorageBackup(data) {
+    if (!data || typeof data !== 'object' || isStructuredAppBackup(data)) return false;
+    return Object.keys(data).some((key) =>
+      key === 'cw' || key === 'followed' || key.startsWith('w_') || key.startsWith('stat_') ||
+      key.startsWith('pref_') || key === 'user_ratings' || key === 'watch_queue' ||
+      key === 'watch_days' || key === 'custom_theme' || key === 'lastReadNotif'
+    );
+  }
+
+  function buildAppBackupPayload() {
+    return {
+      format: 'cat-ime-backup',
+      exportedAt: new Date().toISOString(),
+      ...collectAppDataForSync()
+    };
+  }
+
+  window.exportAppBackup = buildAppBackupPayload;
+
+  async function importAppBackup(raw) {
+    if (!raw || typeof raw !== 'object') {
+      throw new Error('Invalid backup file');
+    }
+
+    cancelPendingAutoSync();
+    suppressAutoSync++;
+    try {
+      if (isStructuredAppBackup(raw)) {
+        clearLocalAppData();
+        applySyncedAppData(normalizeSyncedAppDataForApply(raw), { replaceWatchKeys: true });
+      } else if (isFlatStorageBackup(raw)) {
+        clearLocalAppData();
+        Object.keys(raw).forEach((key) => {
+          if (!isAppDataStorageKey(key) && key !== 'custom_theme' && key !== 'lastReadNotif') return;
+          const str = storageValueToString(raw[key]);
+          if (str !== null) localStorage.setItem(key, str);
+        });
+      } else {
+        throw new Error('Unrecognized backup format');
+      }
+    } finally {
+      suppressAutoSync--;
+    }
+
+    localStorage.setItem(APP_LOCAL_MOD_KEY, new Date().toISOString());
+    notifyAppDataChanged();
+
+    if (currentUser) {
+      await window.syncSettings({ silent: true });
+      return { synced: true };
+    }
+    return { synced: false };
+  }
+
+  window.importAppBackup = importAppBackup;
+
   function collectAppDataForSync() {
     const followed = parseLocalJSON('followed', []);
     const watched = {};
@@ -407,20 +523,26 @@
 
       if (appData.watched && typeof appData.watched === 'object') {
         Object.entries(appData.watched).forEach(([key, value]) => {
-          if (key.startsWith('w_') && typeof value === 'string') localStorage.setItem(key, value);
+          if (!key.startsWith('w_')) return;
+          const str = storageValueToString(value);
+          if (str !== null) localStorage.setItem(key, str);
         });
       }
 
       if (appData.statuses && typeof appData.statuses === 'object') {
         Object.entries(appData.statuses).forEach(([key, value]) => {
-          if (key.startsWith('stat_') && typeof value === 'string') localStorage.setItem(key, value);
+          if (!key.startsWith('stat_')) return;
+          const str = storageValueToString(value);
+          if (str !== null) localStorage.setItem(key, str);
         });
       }
 
       if (appData.preferences && typeof appData.preferences === 'object') {
         Object.entries(appData.preferences).forEach(([key, value]) => {
-          if (key.startsWith('pref_') && typeof value === 'string') localStorage.setItem(key, value);
-          if (key === 'custom_theme' && typeof value === 'string' && value) localStorage.setItem(key, value);
+          const str = storageValueToString(value);
+          if (str === null) return;
+          if (key.startsWith('pref_')) localStorage.setItem(key, str);
+          if (key === 'custom_theme' && str) localStorage.setItem(key, str);
         });
       }
 
@@ -5993,7 +6115,7 @@
 
 <footer class="footer">
   <span class="footer-suggest">Have suggestions? Email <a href="mailto:thecatime@gmail.com">thecatime@gmail.com</a></span>
-  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v4.5</footer>
+  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v4.6</footer>
   <!-- Ya i added a cat emoticon in the footer deal with it :P -->
 
     <script>
@@ -6223,66 +6345,56 @@
       }
 
       function exportAllData() {
-        const data = {};
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          data[key] = localStorage.getItem(key);
+        if (typeof window.exportAppBackup !== 'function') {
+          toast('Export unavailable — refresh the page');
+          return;
         }
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const payload = window.exportAppBackup();
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
         a.download = 'cat-ime-backup.json';
         a.click();
-        toast('All data exported!');
+        const cwCount = Array.isArray(payload.cw) ? payload.cw.length : 0;
+        const listCount = Array.isArray(payload.followed) ? payload.followed.length : 0;
+        const watchedCount = payload.watched ? Object.keys(payload.watched).length : 0;
+        toast(`Exported list (${listCount}), CW (${cwCount}), progress (${watchedCount} shows)`);
       }
 
       function importAllData() {
         document.getElementById('importFile').click();
       }
 
-      function handleImport(input) {
+      async function handleImport(input) {
         const file = input.files[0];
         if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = function(e) {
-          try {
-            const data = JSON.parse(e.target.result);
-
-            // Validate imported data
-            if (!data || typeof data !== 'object') {
-              toast('Invalid backup file: not a valid object');
-              return;
-            }
-
-            // Check for required keys to ensure it's a valid backup
-            const hasValidKeys = Object.keys(data).some(key =>
-              key.startsWith('cw') || key.startsWith('w_') || key.startsWith('followed') || key.startsWith('stat_') || key.startsWith('pref_') ||
-              key === 'user_ratings' || key === 'watch_queue' || key === 'watch_days'
-            );
-
-            if (!hasValidKeys && Object.keys(data).length > 0) {
-              toast('Invalid backup file: unrecognized data format');
-              return;
-            }
-
-            if (!confirm('This will overwrite your current data. Continue?')) return;
-
-            Object.keys(data).forEach(key => {
-              if (typeof data[key] === 'string') {
-                localStorage.setItem(key, data[key]);
-              }
-            });
-
-            toast('Data imported successfully!');
-            location.reload();
-          } catch (err) {
-            toast('Invalid backup file');
-            console.error('Import error:', err);
-          }
-        };
-        reader.readAsText(file);
         input.value = '';
+
+        try {
+          const text = await file.text();
+          const data = JSON.parse(text);
+
+          if (!data || typeof data !== 'object') {
+            toast('Invalid backup file');
+            return;
+          }
+
+          if (!confirm('This will replace your current list, progress, and settings. Continue?')) return;
+
+          if (typeof window.importAppBackup !== 'function') {
+            toast('Import unavailable — refresh the page');
+            return;
+          }
+
+          const result = await window.importAppBackup(data);
+          toast(result.synced
+            ? 'Imported and synced to your account'
+            : 'Imported locally — sign in to sync to the cloud');
+          location.reload();
+        } catch (err) {
+          toast(err?.message || 'Invalid backup file');
+          console.error('Import error:', err);
+        }
       }
 
       let curAnime = null;

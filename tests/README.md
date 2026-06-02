@@ -24,6 +24,19 @@ npm test
 | `html-sanity.test.mjs` | `index.html` | Script order, watch buttons, backup wiring |
 | `mobile-layout.test.mjs` | `index.html` | Viewport, breakpoints, watch/comments mobile CSS |
 | `perf-load.test.mjs` | `index.html` | Lazy home load, deferred watch fetches |
+| `player-autonext.test.mjs` | `index.html` | Auto-next default on, mark watched before advance |
+
+## Player auto-next check (before commit/push)
+
+1. Run `node --test tests/player-autonext.test.mjs` (or full suite).
+2. In the browser on **Watch** with **Megaplay**: finish an episode or run in the console (with a show loaded):
+
+```js
+// Simulates player "episode ended" — should mark current ep watched and go to next
+triggerPlayerAutoNext(curEp);
+```
+
+3. Confirm: current episode ticked as watched, next episode loads, **Auto next** is on in settings.
 
 ## Mobile bug test (before commit/push)
 

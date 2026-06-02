@@ -56,6 +56,7 @@
   let autoSyncTimer = null;
   let autoSyncInFlight = false;
   let currentUser = null;
+  let userInitiatedSignOut = false;
   window.getSupabaseClient = () => supabaseClient;
   window.getCurrentUser = () => currentUser;
   let hasSeenAccountPrompt = localStorage.getItem('hasSeenAccountPrompt');
@@ -725,6 +726,7 @@
   };
   
   window.signOut = async function() {
+    userInitiatedSignOut = true;
     try {
       await supabaseClient.auth.signOut();
       currentUser = null;
@@ -1263,23 +1265,22 @@
       const { data, error } = await withTimeout(
         supabaseClient.auth.getSession(),
         'Session restore',
-        5000
+        12000
       );
 
       if (error) {
         console.error('Session restore error:', error);
-        currentUser = null;
-        await updateAuthUI();
+        if (!currentUser) await updateAuthUI();
         return;
       }
 
-      currentUser = data.session?.user || null;
+      currentUser = data.session?.user || currentUser || null;
 
       if (currentUser) {
         const { data: freshUserData, error: userError } = await withTimeout(
           supabaseClient.auth.getUser(),
           'User restore',
-          5000
+          12000
         );
         if (userError) {
           console.error('User refresh error:', userError);
@@ -1293,8 +1294,8 @@
       await updateAuthUI();
     } catch (err) {
       console.error('Auth restore failed:', err);
-      currentUser = null;
-      await updateAuthUI();
+      // Keep session from onAuthStateChange if getSession timed out on a slow network.
+      if (!currentUser) await updateAuthUI();
     }
   }
   
@@ -1374,8 +1375,21 @@
         clearLocalAppData();
         markNeedsCloudPullOnSignOut();
         notifyAppDataChanged();
-        toast('Signed out');
+        if (userInitiatedSignOut) {
+          toast('Signed out');
+          userInitiatedSignOut = false;
+        } else {
+          console.warn('Session ended unexpectedly (token refresh or storage). Sign in again.');
+          toast('Session expired — please sign in again');
+        }
         await updateAuthUI();
+      } else if (event === 'TOKEN_REFRESHED') {
+        currentUser = session?.user || currentUser;
+      } else if (event === 'TOKEN_REFRESH_FAILED' || event === 'TOKEN_REFRESH_ERROR') {
+        console.warn('Auth token refresh failed:', event);
+        if (window.CatimeApi?.pruneCacheIfStoragePressure) {
+          CatimeApi.pruneCacheIfStoragePressure();
+        }
       } else if (event === 'USER_UPDATED' && session?.user) {
         currentUser = session.user;
         await mergeRemoteAppData({ silent: true });
@@ -1398,6 +1412,9 @@
   
   // Initialize on page load
   document.addEventListener('DOMContentLoaded', async () => {
+    if (window.CatimeApi?.pruneCacheIfStoragePressure) {
+      CatimeApi.pruneCacheIfStoragePressure();
+    }
     await handleAuthCallback();
     // Ensure UI is up to date once DOM is ready (in case onAuthStateChange fired early)
     await restoreAuthSession();
@@ -6114,7 +6131,7 @@
 
 <footer class="footer">
   <span class="footer-suggest">Have suggestions? Email <a href="mailto:thecatime@gmail.com">thecatime@gmail.com</a></span>
-  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v4.9</footer>
+  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v4.10</footer>
   <!-- Ya i added a cat emoticon in the footer deal with it :P -->
 
     <script>
@@ -6429,7 +6446,12 @@
         return PLAYER_SOURCE_CAPS[normalizePlayerSource(source)] || { autoplay: false, autonext: false };
       }
       function isPlayerPrefOn(key) {
-        return localStorage.getItem('pref_' + key) !== 'false';
+        const v = localStorage.getItem('pref_' + key);
+        if (key === 'autonext') return v === null || v === 'true';
+        return v !== 'false';
+      }
+      if (localStorage.getItem('pref_autonext') === null) {
+        localStorage.setItem('pref_autonext', 'true');
       }
       function normalizePlayerSource(s) {
         return PLAYER_SOURCES.includes(s) ? s : DEFAULT_PLAYER_SOURCE;
@@ -7533,6 +7555,21 @@
       }
 
       let playerAutoNextAt = 0;
+      function applyWatchedEpUi(id, ep) {
+        syncWatchedBtn();
+        const epItem = getEpListItem(ep);
+        if (!epItem) return;
+        const watched = new Set(JSON.parse(localStorage.getItem('w_' + id) || '[]'));
+        const isWatched = watched.has(ep);
+        epItem.classList.toggle('done', isWatched);
+        const tick = epItem.querySelector('.etick');
+        if (isWatched && !tick) {
+          epItem.insertAdjacentHTML('beforeend', '<div class="etick" aria-label="Watched"></div>');
+        } else if (!isWatched && tick) {
+          tick.remove();
+        }
+      }
+
       function triggerPlayerAutoNext(episodeFromPlayer) {
         if (!document.getElementById('page-watch')?.classList.contains('active')) return;
         if (!curAnime) return;
@@ -7540,6 +7577,12 @@
         const now = Date.now();
         if (now - playerAutoNextAt < 2500) return;
         playerAutoNextAt = now;
+
+        const endingEp = Math.max(1, Number(episodeFromPlayer) || curEp);
+        if (!Number.isNaN(endingEp)) {
+          markWatched(curAnime.id, endingEp);
+          applyWatchedEpUi(curAnime.id, endingEp);
+        }
 
         const src = normalizePlayerSource(localStorage.getItem('pref_source') || DEFAULT_PLAYER_SOURCE);
         if (src === 'megaplay') goNextEpisode();
@@ -7788,15 +7831,7 @@
           markWatched(id, curEp);
           toast('Episode marked watched');
         }
-        syncWatchedBtn();
-        const epItem = getEpListItem(curEp);
-        if (epItem) {
-          const isWatched = new Set(JSON.parse(localStorage.getItem('w_' + id) || '[]')).has(curEp);
-          epItem.classList.toggle('done', isWatched);
-          const tick = epItem.querySelector('.etick');
-          if (isWatched && !tick) epItem.innerHTML += `<div class="etick" aria-label="Watched"></div>`;
-          else if (!isWatched && tick) tick.remove();
-        }
+        applyWatchedEpUi(id, curEp);
       }
 
       function syncDSButtons() {
@@ -8724,6 +8759,7 @@
       window.PLAYER_SOURCE_LABELS = PLAYER_SOURCE_LABELS;
       window.getPlayerSourceLabel = getPlayerSourceLabel;
       window.watchAnime = watchAnime;
+      window.triggerPlayerAutoNext = triggerPlayerAutoNext;
       window.toggleMyList = toggleMyList;
       window.toggleEpisodeFollow = toggleEpisodeFollow;
       window.fetchNotifications = fetchNotifications;

@@ -4,8 +4,10 @@
 (function (global) {
   const CACHE_PREFIX = 'catime_api_';
   const DEFAULT_TTL_MS = 15 * 60 * 1000;
-  const MAX_CACHE_ENTRIES = 48;
-  const MAX_CACHE_ENTRY_BYTES = 100 * 1024;
+  const MAX_CACHE_ENTRIES = 32;
+  const MAX_CACHE_ENTRY_BYTES = 80 * 1024;
+  const MAX_CACHE_TOTAL_BYTES = 2 * 1024 * 1024;
+  const STORAGE_PRESSURE_BYTES = 3.5 * 1024 * 1024;
 
   function buildCacheKey(query, variables) {
     return CACHE_PREFIX + JSON.stringify({ query, variables });
@@ -53,9 +55,16 @@
         localStorage.removeItem(entries.shift().k);
       }
 
-      if (entries.reduce((sum, e) => sum + e.size, 0) > 4 * 1024 * 1024) {
+      let total = entries.reduce((sum, e) => sum + e.size, 0);
+      while (total > MAX_CACHE_TOTAL_BYTES && entries.length) {
+        const removed = entries.shift();
+        localStorage.removeItem(removed.k);
+        total -= removed.size;
+      }
+
+      if (total > MAX_CACHE_TOTAL_BYTES) {
         entries.sort((a, b) => b.size - a.size);
-        entries.slice(0, Math.ceil(entries.length / 3)).forEach((e) => {
+        entries.slice(0, Math.ceil(entries.length / 2)).forEach((e) => {
           localStorage.removeItem(e.k);
         });
       }
@@ -120,19 +129,47 @@
     return data;
   }
 
+  function estimateLocalStorageBytes() {
+    let total = 0;
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k) continue;
+        const v = localStorage.getItem(k) || '';
+        total += k.length + v.length;
+      }
+    } catch {
+      return 0;
+    }
+    return total;
+  }
+
+  /** Drop AniList cache when storage is tight so Supabase auth tokens can persist. */
+  function pruneCacheIfStoragePressure() {
+    pruneCache();
+    if (estimateLocalStorageBytes() <= STORAGE_PRESSURE_BYTES) return;
+    try {
+      listCacheKeys().forEach((k) => localStorage.removeItem(k));
+    } catch (err) {
+      console.warn('API cache emergency prune failed:', err);
+    }
+  }
+
   global.CatimeApi = {
     fetchGraphQL,
     DEFAULT_TTL_MS,
     pruneCache,
+    pruneCacheIfStoragePressure,
+    estimateLocalStorageBytes,
     buildCacheKey,
     shouldUseCache,
     readCache,
     writeCache,
     CACHE_PREFIX,
     MAX_CACHE_ENTRY_BYTES,
-    MAX_CACHE_ENTRIES
+    MAX_CACHE_ENTRIES,
+    MAX_CACHE_TOTAL_BYTES
   };
 
-  // Clear expired / oversized legacy cache entries on load.
-  pruneCache();
+  pruneCacheIfStoragePressure();
 })(window);

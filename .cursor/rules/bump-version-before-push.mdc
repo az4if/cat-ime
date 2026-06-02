@@ -49,6 +49,18 @@ When `index.html`, layout CSS, watch page, comments, nav, or modals changed:
 
 If you cannot open a browser in the environment, say so and list what you verified statically; do **not** claim mobile was fully tested.
 
+## Player auto-next + watched (when watch/player code changed)
+
+**Automated (required):** `tests/player-autonext.test.mjs` must pass (default `pref_autonext`, mark watched before `goNextEpisode`, embed end events).
+
+**Manual (required before commit/push if you touched auto-next / watched / `triggerPlayerAutoNext`):**
+
+1. On **Watch**, confirm **Auto next** toggle shows **on** (fresh profile: Application → clear `pref_autonext` only, reload — should return to on).
+2. Play an episode on **Megaplay** until it ends (or simulate in console — see `tests/README.md`).
+3. Confirm the episode you finished gets a **watched** checkmark and **Watched** button turns on, then the next episode loads.
+
+If the embed never fires an end event, auto-next will not run — that is a player limitation, not a false pass on static tests.
+
 # Bump version before push
 
 Before `git push`, update the release version so users and deploys reflect the latest build.

@@ -99,7 +99,8 @@
   }
 
   function getEpisodeFollowIds() {
-    return readIdList(EPISODE_FOLLOWS_KEY, LEGACY_FOLLOWED_KEY);
+    // Do not fall back to `followed` / my_list — only explicit episode follows count
+    return readIdList(EPISODE_FOLLOWS_KEY, null);
   }
 
   function setEpisodeFollowIds(ids) {

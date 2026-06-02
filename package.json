@@ -1,0 +1,9 @@
+{
+  "name": "cat-ime",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "test:watch": "node --test --watch tests/*.test.mjs"
+  }
+}

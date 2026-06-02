@@ -1,0 +1,98 @@
+---
+description: Bump app version in index.html (and sw.js when needed) before pushing
+alwaysApply: true
+---
+
+# Do not push to main without explicit approval
+
+- **Never** run `git commit`, `git push`, or open a PR to `main` unless the user explicitly asks (e.g. “push”, “commit”, “ship to main”).
+- Local work is fine; leave it uncommitted or on a branch until they say to publish.
+
+## Test suite stays off main unless requested
+
+Do **not** commit or push these to `main` unless the user explicitly asks for tests on the repo:
+
+- `tests/` (automated `node --test` suite)
+- `package.json` / `npm test` scripts added only for tests
+- `js/catime-app-data.js` or other refactors done mainly to support tests
+- `scripts/bug-test-storage.mjs` and `tests/README.md`
+
+You may run tests locally (`node --test tests/*.test.mjs`) while developing. Do not treat passing tests as permission to push.
+
+# Bug test before commit and push
+
+Before **any** `git commit` or `git push` (only when the user explicitly asked you to publish):
+
+1. Run `node --test tests/*.test.mjs` if `tests/` exists in the project (includes `mobile-layout.test.mjs` static guards)
+2. **Mobile check (required when UI/CSS/HTML changed):** verify pages **work** and **look good** on a narrow viewport — not only that tests pass
+3. Sanity-check other areas touched by the diff (auth, sync/import, watch player, comments behavior)
+4. Fix failing tests and obvious regressions **before** staging or committing
+
+Do not commit or push with failing tests or known-broken behavior in files you modified.
+
+## Mobile bug test (work + look)
+
+When `index.html`, layout CSS, watch page, comments, nav, or modals changed:
+
+**Automated (required):** `mobile-layout.test.mjs` must pass as part of the full suite.
+
+**Manual (required before commit/push):** Use browser DevTools device mode (or a real phone) at **375×667** and **390×844** minimum:
+
+| Area | Works | Looks good |
+|------|-------|------------|
+| Home | Sections load; horizontal rows scroll | No overflow off-screen; hero readable |
+| Nav | Hamburger opens/closes menu; pages switch | Logo and icons not clipped |
+| Watch | Player loads; ep list scrolls; controls tap | Comments stack; Post full-width; actions grid neat |
+| Search / List | Filters and rows usable | Text not microscopic; tables/cards fit width |
+| Detail drawer | Opens/closes; actions tappable | Poster + text not overlapping awkwardly |
+| Auth / Settings modals | Sign in/out; forms submit | Modal fits screen; inputs ≥44px tall |
+
+If you cannot open a browser in the environment, say so and list what you verified statically; do **not** claim mobile was fully tested.
+
+# Bump version before push
+
+Before `git push`, update the release version so users and deploys reflect the latest build.
+
+## User-facing version (required on every push)
+
+In `index.html`, bump the footer label:
+
+```html
+<!-- footer -->
+... v3.13</footer>
+```
+
+- Format: `vMAJOR.MINOR` (e.g. `v3.13` → `v3.14`)
+- Increment the **minor** segment for each release push (project convention)
+- Do **not** change `version: 3` inside `exportPayload()` — that is sync **schema** version, not the app release
+
+## Service worker cache (when assets changed)
+
+In `sw.js`, bump the cache name when `index.html`, `js/*`, or other cached assets changed:
+
+```js
+const CACHE = 'catime-v10';  // increment: catime-v11, catime-v12, ...
+```
+
+Bump `CACHE` whenever users must get fresh HTML/JS (same push as a footer bump is fine). Skip only if the push has zero client-file changes.
+
+## Pre-push checklist
+
+1. `node --test tests/*.test.mjs` passes (bug test — required)
+2. If UI changed: mobile manual check done (works + looks good at narrow widths)
+3. Footer in `index.html` shows the new `v3.x`
+4. If client files changed: `sw.js` `CACHE` incremented
+5. Version bump is included in the commit you are pushing (not left for a follow-up)
+6. Commit message mentions the version when you ship features (e.g. `... and bump to v3.14`)
+
+## Agent workflow
+
+When the user asks to push (or you are about to run `git push`):
+
+1. Run the full test suite; fix failures before committing
+2. If UI/CSS changed: complete the mobile bug test table (works + looks good)
+3. Check current footer version and whether `index.html` / `js/` / `sw.js` changed in the branch
+4. Apply bumps if missing; stage those files with the rest of the push
+5. Only then push
+
+Never push release commits without updating the footer version.

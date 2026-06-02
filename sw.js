@@ -1,5 +1,5 @@
-const CACHE = 'catime-v26';
-const ASSETS = ['./', './index.html', './dmca.html', './dmca/index.html', './js/catime-api.js', './js/catime-storage.js', './js/catime-ui.js', './js/catime-features.js', './js/catime-comments.js'];
+const CACHE = 'catime-v27';
+const ASSETS = ['./', './index.html', './dmca.html', './dmca/index.html', './js/catime-api.js', './js/catime-app-data.js', './js/catime-storage.js', './js/catime-ui.js', './js/catime-features.js', './js/catime-comments.js'];
 
 function isHtmlRequest(url) {
   return url.pathname === '/' || url.pathname === '/dmca' || url.pathname.startsWith('/dmca') || url.pathname.endsWith('/') || url.pathname.endsWith('.html');

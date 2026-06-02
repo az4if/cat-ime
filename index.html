@@ -24,6 +24,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js"></script>
 <script src="js/catime-storage.js"></script>
+<script src="js/catime-app-data.js"></script>
 <script src="js/catime-api.js"></script>
 <script src="js/catime-ui.js"></script>
 <script src="js/catime-features.js"></script>
@@ -50,10 +51,6 @@
   
   // Account system
   window.CATIME_ACCOUNT_BUILD = 'account-switch-fix-2026-05-24';
-  const APP_SYNC_TS_KEY = 'appData_syncedAt';
-  const APP_LOCAL_MOD_KEY = 'appData_localModifiedAt';
-  const LAST_ACCOUNT_ID_KEY = 'lastSignedInUserId';
-  const NEEDS_CLOUD_PULL_KEY = 'appData_needsCloudPull';
   let appDataTableAvailable = null;
   let suppressAutoSync = 0;
   let autoSyncTimer = null;
@@ -198,83 +195,26 @@
     }
   }
 
-  function storageValueToString(value) {
-    if (value === null || value === undefined) return null;
-    if (typeof value === 'string') return value;
-    return JSON.stringify(value);
-  }
+  const APP_SYNC_TS_KEY = CatimeAppData.KEYS.APP_SYNC_TS;
+  const APP_LOCAL_MOD_KEY = CatimeAppData.KEYS.APP_LOCAL_MOD;
+  const LAST_ACCOUNT_ID_KEY = CatimeAppData.KEYS.LAST_ACCOUNT_ID;
+  const NEEDS_CLOUD_PULL_KEY = CatimeAppData.KEYS.NEEDS_CLOUD_PULL;
 
-  function normalizeSyncedAppDataForApply(appData) {
-    if (!appData || typeof appData !== 'object') return appData;
-    const out = { ...appData };
+  const storageValueToString = CatimeAppData.storageValueToString;
+  const normalizeSyncedAppDataForApply = CatimeAppData.normalizeSyncedAppDataForApply;
+  const isStructuredAppBackup = CatimeAppData.isStructuredAppBackup;
+  const isFlatStorageBackup = CatimeAppData.isFlatStorageBackup;
+  const getTimestampMs = CatimeAppData.getTimestampMs;
+  const isAppDataStorageKey = CatimeAppData.isAppDataStorageKey;
+  const normalizeRemoteAppData = CatimeAppData.normalizeRemoteAppData;
+  const isMissingAppDataTableError = CatimeAppData.isMissingAppDataTableError;
 
-    if (out.watched && typeof out.watched === 'object') {
-      const watched = {};
-      Object.entries(out.watched).forEach(([key, value]) => {
-        if (!key.startsWith('w_')) return;
-        const str = storageValueToString(value);
-        if (str !== null) watched[key] = str;
-      });
-      out.watched = watched;
-    }
-
-    if (out.statuses && typeof out.statuses === 'object') {
-      const statuses = {};
-      Object.entries(out.statuses).forEach(([key, value]) => {
-        if (!key.startsWith('stat_')) return;
-        const str = storageValueToString(value);
-        if (str !== null) statuses[key] = str;
-      });
-      out.statuses = statuses;
-    }
-
-    if (out.preferences && typeof out.preferences === 'object') {
-      const preferences = {};
-      Object.entries(out.preferences).forEach(([key, value]) => {
-        const str = storageValueToString(value);
-        if (str !== null) preferences[key] = str;
-      });
-      out.preferences = preferences;
-    }
-
-    ['ratings', 'watch_queue', 'watch_days', 'custom_theme', 'lastReadNotif'].forEach((field) => {
-      if (out[field] !== undefined && out[field] !== null) {
-        const str = storageValueToString(out[field]);
-        if (str !== null) out[field] = str;
-      }
-    });
-
-    return out;
-  }
-
-  function isStructuredAppBackup(data) {
-    if (!data || typeof data !== 'object') return false;
-    if (data.format === 'cat-ime-backup') return true;
-    return Boolean(
-      data.version >= 1 &&
-      (Array.isArray(data.cw) ||
-        Array.isArray(data.followed) ||
-        Array.isArray(data.my_list) ||
-        (data.watched && typeof data.watched === 'object'))
-    );
-  }
-
-  function isFlatStorageBackup(data) {
-    if (!data || typeof data !== 'object' || isStructuredAppBackup(data)) return false;
-    return Object.keys(data).some((key) =>
-      key === 'cw' || key === 'followed' || key === 'my_list' || key === 'episode_follows' ||
-      key.startsWith('w_') || key.startsWith('stat_') ||
-      key.startsWith('pref_') || key === 'user_ratings' || key === 'watch_queue' ||
-      key === 'watch_days' || key === 'custom_theme' || key === 'lastReadNotif'
-    );
+  function getListStorageApi() {
+    return window.CatimeStorage;
   }
 
   function buildAppBackupPayload() {
-    return {
-      format: 'cat-ime-backup',
-      exportedAt: new Date().toISOString(),
-      ...collectAppDataForSync()
-    };
+    return CatimeAppData.buildAppBackupPayload(localStorage, getListStorageApi);
   }
 
   window.exportAppBackup = buildAppBackupPayload;
@@ -292,11 +232,7 @@
         applySyncedAppData(normalizeSyncedAppDataForApply(raw), { replaceWatchKeys: true });
       } else if (isFlatStorageBackup(raw)) {
         clearLocalAppData();
-        Object.keys(raw).forEach((key) => {
-          if (!isAppDataStorageKey(key) && key !== 'custom_theme' && key !== 'lastReadNotif') return;
-          const str = storageValueToString(raw[key]);
-          if (str !== null) localStorage.setItem(key, str);
-        });
+        CatimeAppData.importFlatBackup(localStorage, raw);
       } else {
         throw new Error('Unrecognized backup format');
       }
@@ -317,65 +253,7 @@
   window.importAppBackup = importAppBackup;
 
   function collectAppDataForSync() {
-    const myList = CatimeStorage.getMyListIds();
-    const episodeFollows = CatimeStorage.getEpisodeFollowIds();
-    const watched = {};
-    const statuses = {};
-
-    Object.keys(localStorage).forEach(key => {
-      if (key.startsWith('w_')) watched[key] = localStorage.getItem(key);
-      if (key.startsWith('stat_')) statuses[key] = localStorage.getItem(key);
-    });
-
-    myList.forEach(id => {
-      const watchKey = 'w_' + id;
-      const statusKey = 'stat_' + id;
-      if (localStorage.getItem(watchKey) !== null) watched[watchKey] = localStorage.getItem(watchKey);
-      if (localStorage.getItem(statusKey) !== null) statuses[statusKey] = localStorage.getItem(statusKey);
-    });
-
-    return {
-      version: 3,
-      syncedAt: new Date().toISOString(),
-      cw: parseLocalJSON('cw', []),
-      my_list: myList,
-      episode_follows: episodeFollows,
-      followed: myList,
-      watched,
-      statuses,
-      preferences: (() => {
-        const prefs = {
-          pref_theme: localStorage.getItem('pref_theme') ?? '0',
-          pref_ds: localStorage.getItem('pref_ds') || 'sub',
-          pref_source: localStorage.getItem('pref_source') || 'megaplay',
-          pref_list_filter: localStorage.getItem('pref_list_filter') || 'all',
-          pref_list_sort: localStorage.getItem('pref_list_sort') || 'title'
-        };
-        Object.keys(localStorage).forEach(key => {
-          if (key.startsWith('pref_') && localStorage.getItem(key) !== null) {
-            prefs[key] = localStorage.getItem(key);
-          }
-        });
-        return prefs;
-      })(),
-      custom_theme: localStorage.getItem('custom_theme') || '',
-      lastReadNotif: localStorage.getItem('lastReadNotif') || '',
-      ratings: localStorage.getItem('user_ratings') || '',
-      watch_queue: localStorage.getItem('watch_queue') || '',
-      watch_days: localStorage.getItem('watch_days') || ''
-    };
-  }
-
-  function normalizeRemoteAppData(raw, syncedAt) {
-    if (!raw || typeof raw !== 'object') return null;
-    return {
-      ...raw,
-      syncedAt: raw.syncedAt || syncedAt || null
-    };
-  }
-
-  function isMissingAppDataTableError(error) {
-    return error?.code === 'PGRST205' || /user_app_data/.test(error?.message || '');
+    return CatimeAppData.collectAppDataForSync(localStorage, getListStorageApi);
   }
 
   async function probeAppDataTable() {
@@ -484,19 +362,6 @@
     return { ...metadataResult, source: 'metadata' };
   }
 
-  function isAppDataStorageKey(key) {
-    return key === 'cw' || key === 'followed' || key === 'my_list' || key === 'episode_follows' ||
-      key === 'lastReadNotif' || key === 'custom_theme' ||
-      key === 'user_ratings' || key === 'watch_queue' || key === 'watch_days' ||
-      key.startsWith('w_') || key.startsWith('stat_') || key.startsWith('pref_');
-  }
-
-  function getTimestampMs(iso) {
-    if (!iso) return 0;
-    const t = new Date(iso).getTime();
-    return Number.isFinite(t) ? t : 0;
-  }
-
   function markLocalAppDataModified() {
     if (!currentUser || suppressAutoSync > 0) return;
     localStorage.setItem(APP_LOCAL_MOD_KEY, new Date().toISOString());
@@ -507,128 +372,42 @@
     document.dispatchEvent(new CustomEvent('catime-appdata-changed'));
   }
 
-  function clearWatchProgressKeys() {
-    const keysToRemove = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && (key.startsWith('w_') || key.startsWith('stat_'))) keysToRemove.push(key);
-    }
-    keysToRemove.forEach((key) => localStorage.removeItem(key));
-  }
-
   function applySyncedAppData(appData, options = {}) {
-    if (!appData || typeof appData !== 'object') return false;
-    const { replaceWatchKeys = false } = options;
-
     suppressAutoSync++;
     try {
-      if (replaceWatchKeys) clearWatchProgressKeys();
-
-      if (Array.isArray(appData.cw)) localStorage.setItem('cw', JSON.stringify(appData.cw));
-
-      const myList = Array.isArray(appData.my_list)
-        ? appData.my_list
-        : (Array.isArray(appData.followed) ? appData.followed : null);
-      if (myList) CatimeStorage.setMyListIds(myList);
-
-      const episodeFollows = Array.isArray(appData.episode_follows)
-        ? appData.episode_follows
-        : (Array.isArray(appData.followed) ? appData.followed : null);
-      if (episodeFollows) CatimeStorage.setEpisodeFollowIds(episodeFollows);
-
-      if (appData.watched && typeof appData.watched === 'object') {
-        Object.entries(appData.watched).forEach(([key, value]) => {
-          if (!key.startsWith('w_')) return;
-          const str = storageValueToString(value);
-          if (str !== null) localStorage.setItem(key, str);
-        });
-      }
-
-      if (appData.statuses && typeof appData.statuses === 'object') {
-        Object.entries(appData.statuses).forEach(([key, value]) => {
-          if (!key.startsWith('stat_')) return;
-          const str = storageValueToString(value);
-          if (str !== null) localStorage.setItem(key, str);
-        });
-      }
-
-      if (appData.preferences && typeof appData.preferences === 'object') {
-        Object.entries(appData.preferences).forEach(([key, value]) => {
-          const str = storageValueToString(value);
-          if (str === null) return;
-          if (key.startsWith('pref_')) localStorage.setItem(key, str);
-          if (key === 'custom_theme' && str) localStorage.setItem(key, str);
-        });
-      }
-
-      if (typeof appData.custom_theme === 'string' && appData.custom_theme) {
-        localStorage.setItem('custom_theme', appData.custom_theme);
-      }
-
-      if (typeof appData.lastReadNotif === 'string' && appData.lastReadNotif) {
-        localStorage.setItem('lastReadNotif', appData.lastReadNotif);
-      }
-
-      if (typeof appData.ratings === 'string') localStorage.setItem('user_ratings', appData.ratings);
-      if (typeof appData.watch_queue === 'string') localStorage.setItem('watch_queue', appData.watch_queue);
-      if (typeof appData.watch_days === 'string') localStorage.setItem('watch_days', appData.watch_days);
-
-      if (appData.syncedAt) {
-        localStorage.setItem(APP_SYNC_TS_KEY, appData.syncedAt);
-        localStorage.removeItem(APP_LOCAL_MOD_KEY);
-      }
+      return CatimeAppData.applySyncedAppData(localStorage, getListStorageApi, appData, options);
     } finally {
       suppressAutoSync--;
     }
-
-    return true;
   }
 
   function hasLocalAppData() {
-    return Boolean(
-      localStorage.getItem('cw') ||
-      localStorage.getItem('my_list') ||
-      localStorage.getItem('followed') ||
-      localStorage.getItem('episode_follows') ||
-      Object.keys(localStorage).some(key => key.startsWith('w_') || key.startsWith('stat_'))
-    );
+    return CatimeAppData.hasLocalAppData(localStorage);
   }
 
   function clearLocalAppData() {
     suppressAutoSync++;
     try {
-      const keysToRemove = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (!key) continue;
-        if (isAppDataStorageKey(key) || key === APP_SYNC_TS_KEY || key === APP_LOCAL_MOD_KEY) {
-          keysToRemove.push(key);
-        }
-      }
-      keysToRemove.forEach((key) => localStorage.removeItem(key));
+      CatimeAppData.clearLocalAppData(localStorage);
     } finally {
       suppressAutoSync--;
     }
   }
 
   function isDifferentSignedInAccount(userId) {
-    if (!userId) return false;
-    const prev = localStorage.getItem(LAST_ACCOUNT_ID_KEY);
-    return prev !== userId;
+    return CatimeAppData.isDifferentSignedInAccount(localStorage, userId);
   }
 
   function rememberSignedInAccount(userId) {
-    if (userId) localStorage.setItem(LAST_ACCOUNT_ID_KEY, userId);
+    CatimeAppData.rememberSignedInAccount(localStorage, userId);
   }
 
   function markNeedsCloudPullOnSignOut() {
-    localStorage.setItem(NEEDS_CLOUD_PULL_KEY, '1');
+    CatimeAppData.markNeedsCloudPullOnSignOut(localStorage);
   }
 
   function consumeNeedsCloudPull() {
-    const needs = localStorage.getItem(NEEDS_CLOUD_PULL_KEY) === '1';
-    if (needs) localStorage.removeItem(NEEDS_CLOUD_PULL_KEY);
-    return needs;
+    return CatimeAppData.consumeNeedsCloudPull(localStorage);
   }
 
   function cancelPendingAutoSync() {
@@ -5235,8 +5014,7 @@
   .bulk-row button:hover { border-color: var(--accent); color: var(--accent); }
 
   .watch-extras { margin-top: 0.65rem; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
-  .watch-extras select,
-  .ep-comments-form textarea {
+  .watch-extras select {
     background: var(--bg3);
     border: 1px solid var(--border);
     color: var(--text);
@@ -5250,6 +5028,9 @@
     border-radius: 10px;
     border: 1px solid rgba(var(--accent-rgb), 0.12);
     background: rgba(var(--accent-rgb), 0.04);
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
   }
 
   .ep-comments-hd {
@@ -5364,20 +5145,25 @@
     display: flex;
     gap: 0.45rem;
     align-items: flex-end;
+    width: 100%;
   }
 
   .ep-comments-form textarea {
     flex: 1;
+    min-width: 0;
+    width: 100%;
     min-height: 52px;
     max-height: 120px;
     resize: vertical;
     font-family: inherit;
     font-size: 0.8rem;
+    line-height: 1.45;
     padding: 0.45rem 0.55rem;
     border-radius: 8px;
     border: 1px solid var(--border);
     background: var(--bg3);
     color: var(--text);
+    box-sizing: border-box;
   }
 
   .ep-comments-form textarea:disabled {
@@ -5396,6 +5182,201 @@
     color: var(--text2);
     line-height: 1.5;
     margin: 0.5rem 0 0;
+  }
+
+  /* Watch page + comments — mobile layout */
+  @media (max-width: 768px) {
+    .ep-meta {
+      width: 100%;
+      min-width: 0;
+    }
+
+    .brow {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .watch-control-group {
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .watch-control-group[aria-label="Episode actions"] {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.4rem;
+      align-items: stretch;
+    }
+
+    .watch-control-group[aria-label="Episode actions"] .watch-control-label {
+      grid-column: 1 / -1;
+      margin-bottom: 0.1rem;
+    }
+
+    .watch-control-group[aria-label="Episode actions"] .mkb {
+      width: 100%;
+      justify-content: center;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .watch-source-select {
+      flex: 1;
+      min-width: 0;
+      max-width: none;
+    }
+
+    .bulk-row {
+      gap: 0.4rem;
+    }
+
+    .bulk-row button {
+      flex: 1 1 calc(50% - 0.25rem);
+      min-height: 40px;
+      font-size: 0.7rem;
+    }
+
+    .watch-extras {
+      width: 100%;
+    }
+
+    .watch-extras select {
+      width: 100%;
+      max-width: none;
+      min-height: 40px;
+      font-size: 0.8rem;
+    }
+
+    .ep-comments {
+      margin-top: 1rem;
+      padding: 0.65rem 0.7rem;
+    }
+
+    .ep-comments-hd {
+      flex-wrap: wrap;
+      gap: 0.25rem 0.5rem;
+    }
+
+    .ep-comments-meta {
+      font-size: 0.62rem;
+      letter-spacing: 0.04em;
+    }
+
+    .ep-comments-list {
+      max-height: min(200px, 38vh);
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .ep-comment-avatar {
+      width: 32px;
+      height: 32px;
+    }
+
+    .ep-comments-form {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.5rem;
+    }
+
+    .ep-comments-form textarea {
+      min-height: 4.5rem;
+      max-height: 9rem;
+      font-size: 16px;
+    }
+
+    .ep-comments-form .btn-p {
+      width: 100%;
+      min-height: 44px;
+      padding: 0.55rem 1rem;
+      font-size: 0.85rem;
+    }
+
+    .ep-comment-del {
+      min-width: 40px;
+      min-height: 40px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-left: auto;
+    }
+
+    .similar-section {
+      padding: 1rem 0.75rem;
+    }
+
+    .detail-drawer-inner {
+      max-height: 92vh;
+      border-radius: 14px 14px 0 0;
+    }
+
+    .detail-body {
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: 0 1rem 1.25rem;
+    }
+
+    .detail-poster {
+      width: 96px;
+    }
+
+    .detail-content {
+      padding-top: 0.5rem;
+      width: 100%;
+      text-align: left;
+    }
+
+    .detail-actions {
+      justify-content: stretch;
+    }
+
+    .detail-actions .btn-p,
+    .detail-actions .btn-g,
+    .detail-actions .mkb {
+      flex: 1 1 calc(50% - 0.25rem);
+      min-width: 0;
+      justify-content: center;
+    }
+
+    .detail-comments-note {
+      font-size: 0.75rem;
+    }
+
+    .horizontal-scroll-container {
+      margin: 0 -0.25rem;
+    }
+
+    .cw-card {
+      min-width: 0;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .ep-comments-title {
+      font-size: 0.82rem;
+    }
+
+    .ep-comment-text {
+      font-size: 0.78rem;
+    }
+
+    .ep-comment-user {
+      font-size: 0.72rem;
+    }
+
+    .watch-control-group[aria-label="Episode actions"] {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .bulk-row button {
+      flex: 1 1 100%;
+    }
+
+    .ep-comments-list {
+      max-height: min(160px, 32vh);
+    }
   }
 
   .queue-list { display: flex; flex-direction: column; gap: 0.35rem; max-height: 180px; overflow-y: auto; }
@@ -6133,7 +6114,7 @@
 
 <footer class="footer">
   <span class="footer-suggest">Have suggestions? Email <a href="mailto:thecatime@gmail.com">thecatime@gmail.com</a></span>
-  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v4.8</footer>
+  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v4.9</footer>
   <!-- Ya i added a cat emoticon in the footer deal with it :P -->
 
     <script>
@@ -6499,9 +6480,7 @@
           CatimeFeatures.updateRoute(id === 'home' ? null : id);
         }
         if (id === 'home') {
-          refreshCwAndRecommendations();
-          CatimeFeatures.loadAiringThisWeek();
-          CatimeFeatures.loadSeasonalHub();
+          bootstrapHomeFeeds(true);
         }
         if (id === 'search') {
           if (!document.getElementById('searchGrid').children.length) {
@@ -6700,7 +6679,17 @@
         }));
       }
 
-      async function fetchAnilistPage(query, genre, page = 1, perPage = 50, season = '', year = '', sort = 'TRENDING_DESC') {
+      function scheduleIdleTask(fn, timeoutMs = 3000) {
+        if (typeof requestIdleCallback === 'function') {
+          requestIdleCallback(() => fn(), { timeout: timeoutMs });
+        } else {
+          setTimeout(fn, 120);
+        }
+      }
+
+      async function fetchAnilistPage(query, genre, page = 1, perPage = 50, season = '', year = '', sort = 'TRENDING_DESC', options = {}) {
+        const includeDescription = options.includeDescription === true;
+        const descField = includeDescription ? '\n        description(asHtml: false)' : '';
         const q = `
   query ($page: Int, $perPage: Int, $search: String, $genre: String, $season: MediaSeason, $seasonYear: Int, $sort: [MediaSort]) {
     Page (page: $page, perPage: $perPage) {
@@ -6715,8 +6704,7 @@
         episodes
         nextAiringEpisode { episode }
         averageScore
-        popularity
-        description(asHtml: false)
+        popularity${descField}
         coverImage { large }
         bannerImage
         }
@@ -6989,22 +6977,31 @@
         buildEpList(a, initialEps, []);
         loadPlayer(startEp, `Episode ${startEp}`, startEp, initialEps);
         CatimeFeatures.syncWatchActionButtons(a);
-        fetchSeasons(a.id);
         fetchAiringInfo(a.id);
-        fetchSimilarAnime(a.id);
         CatimeFeatures.syncWatchPageExtras();
         syncWatchedBtn();
+        document.getElementById('seasonsSection').style.display = 'none';
+        document.getElementById('similarSection').style.display = 'none';
+
+        scheduleIdleTask(() => {
+          if (!curAnime || curAnime.id !== a.id) return;
+          fetchSeasons(a.id);
+          fetchSimilarAnime(a.id);
+        }, 2500);
 
         void (async () => {
           const epCount = await resolveEpisodeCount(a.id, a.malId || a.idMal, initialEps);
           if (!curAnime || curAnime.id !== a.id) return;
           curAnime.eps = epCount;
           buildEpList(curAnime, epCount, window._lastEpTitles || []);
-          fetchEpisodeTitles(a.id, curAnime, epCount);
           const watchMetaEl = document.getElementById('watchMeta');
           if (watchMetaEl && curEp) {
             watchMetaEl.textContent = `Episode ${curEp} of ${epCount} · ${curDS.toUpperCase()}`;
           }
+          scheduleIdleTask(() => {
+            if (!curAnime || curAnime.id !== a.id) return;
+            fetchEpisodeTitles(a.id, curAnime, epCount);
+          }, 4000);
         })();
       }
 
@@ -7019,7 +7016,8 @@
           let page = 1;
           let hasNext = true;
 
-          while (hasNext && page <= 60) {
+          const maxPages = Math.min(60, Math.max(3, Math.ceil((epCount || 12) / 25) + 1));
+          while (hasNext && page <= maxPages) {
             let d = null;
             for (let attempt = 0; attempt < 4; attempt++) {
               const res = await fetch(`https://api.jikan.moe/v4/anime/${malId}/episodes?page=${page}`);
@@ -7062,12 +7060,7 @@
       async function fetchAiringInfo(animeId) {
         const q = `query($id:Int){ Media(id:$id){ nextAiringEpisode { episode airingAt } } }`;
         try {
-          const res = await fetch('https://graphql.anilist.co', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query: q, variables: { id: animeId } })
-          });
-          const d = await res.json();
+          const d = await CatimeApi.fetchGraphQL(q, { id: animeId });
           if (!d.data?.Media || curAnime?.id !== animeId) return;
           const nae = d.data.Media.nextAiringEpisode;
           if (nae) {
@@ -7120,33 +7113,21 @@
       }
 
       async function fetchSeasons(id) {
-        if (!curAnime) {
-          console.log('No curAnime in fetchSeasons');
-          return;
-        }
-        
-        console.log('fetchSeasons called for:', curAnime.title);
-        
+        if (!curAnime || curAnime.id !== id) return;
+
         const seasonsSection = document.getElementById('seasonsSection');
         const seasonsGrid = document.getElementById('seasonsGrid');
-        
-        // Show loading state
+
         seasonsSection.style.display = 'block';
         seasonsGrid.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3);font-size:0.82rem">Loading seasons...</div>';
-        
+
         let allSeasons = [];
-        
-        // Method 1: Use relations (any format, not just TV)
+
         const q1 = `query($id: Int){ Media(id: $id) { title { english romaji } relations { edges { relationType node { id idMal type format title { romaji english } episodes averageScore coverImage { large } isAdult } } } } }`;
         try {
-          const res1 = await fetch('https://graphql.anilist.co', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q1, variables: { id } }) });
-          const d1 = await res1.json();
-          console.log('Relations data:', d1);
-          
+          const d1 = await CatimeApi.fetchGraphQL(q1, { id });
           if (d1.data) {
             const rels = d1.data.Media.relations.edges.filter(e => isWatchableMedia(e));
-            console.log('All relations (anime only):', rels.length);
-            
             rels.forEach(r => {
               allSeasons.push({
                 id: r.node.id,
@@ -7159,53 +7140,38 @@
                 dubbed: true
               });
             });
-          } else {
-            console.log('No data in relations response');
           }
         } catch (e) {
           console.error('Error fetching relations:', e);
         }
-        
-        // Method 2: Search by title (very aggressive matching)
-        const baseTitle = extractBaseTitle(curAnime.title);
-        console.log('Base title for search:', baseTitle);
-        
-        const q2 = `query($search: String) { Page(page: 1, perPage: 50) { media(search: $search, type: ANIME, isAdult: false) { id idMal type format title { english romaji } episodes averageScore coverImage { large } } } }`;
-        try {
-          const res2 = await fetch('https://graphql.anilist.co', { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' }, 
-            body: JSON.stringify({ query: q2, variables: { search: baseTitle } }) 
-          });
-          const d2 = await res2.json();
-          console.log('Search results:', d2);
-          
-          if (d2.data && d2.data.Page.media.length > 0) {
-            d2.data.Page.media.forEach(m => {
-              const title = (m.title.english || m.title.romaji).toLowerCase();
+
+        if (allSeasons.length < 2) {
+          const baseTitle = extractBaseTitle(curAnime.title);
+          const q2 = `query($search: String) { Page(page: 1, perPage: 50) { media(search: $search, type: ANIME, isAdult: false) { id idMal type format title { english romaji } episodes averageScore coverImage { large } } } }`;
+          try {
+            const d2 = await CatimeApi.fetchGraphQL(q2, { search: baseTitle });
+            if (d2.data && d2.data.Page.media.length > 0) {
               const baseLower = baseTitle.toLowerCase();
-              
-              // Very loose matching - just check if base title is in the title
-              const isSeason = title.includes(baseLower) || baseLower.includes(title.split(/\s+/)[0]);
-              
-              if (isSeason && isWatchableMedia(m) && !allSeasons.find(s => s.id === m.id)) {
-                allSeasons.push({
-                  id: m.id,
-                  malId: m.idMal,
-                  title: m.title.english || m.title.romaji || 'Unknown',
-                  eps: m.episodes ?? null,
-                  score: m.averageScore ? (m.averageScore / 10).toFixed(1) : '?',
-                  img: m.coverImage.large || '',
-                  relationType: 'SEARCH',
-                  dubbed: true
-                });
-              }
-            });
-          } else {
-            console.log('No data in search response');
+              d2.data.Page.media.forEach(m => {
+                const title = (m.title.english || m.title.romaji).toLowerCase();
+                const isSeason = title.includes(baseLower) || baseLower.includes(title.split(/\s+/)[0]);
+                if (isSeason && isWatchableMedia(m) && !allSeasons.find(s => s.id === m.id)) {
+                  allSeasons.push({
+                    id: m.id,
+                    malId: m.idMal,
+                    title: m.title.english || m.title.romaji || 'Unknown',
+                    eps: m.episodes ?? null,
+                    score: m.averageScore ? (m.averageScore / 10).toFixed(1) : '?',
+                    img: m.coverImage.large || '',
+                    relationType: 'SEARCH',
+                    dubbed: true
+                  });
+                }
+              });
+            }
+          } catch (e) {
+            console.error('Error searching seasons:', e);
           }
-        } catch (e) {
-          console.error('Error searching:', e);
         }
         
         // Remove duplicates and current anime
@@ -7219,11 +7185,9 @@
           }
         });
         
-        console.log('Final seasons count:', finalSeasons.length);
-        console.log('Seasons data:', finalSeasons);
-        
+        if (!curAnime || curAnime.id !== id) return;
+
         if (finalSeasons.length === 0) {
-          console.log('No seasons found');
           seasonsSection.style.display = 'none';
           return;
         }
@@ -7244,7 +7208,6 @@
             card.style.animationDelay = `${Math.min(idx * 45, 360)}ms`;
             seasonsGrid.appendChild(card);
           });
-          console.log('Season cards rendered:', sortedSeasons.length);
         } catch (e) {
           console.error('Error rendering season cards:', e);
           seasonsGrid.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3);font-size:0.82rem">Error loading seasons</div>';
@@ -7254,8 +7217,8 @@
       async function fetchSimilarAnime(id) {
         const q = `query($id: Int){ Media(id: $id) { recommendations { edges { node { mediaRecommendation { id idMal type format isAdult title { english romaji } episodes averageScore coverImage { large } bannerImage } } } } } }`;
         try {
-          const res = await fetch('https://graphql.anilist.co', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q, variables: { id } }) });
-          const d = await res.json();
+          const d = await CatimeApi.fetchGraphQL(q, { id });
+          if (!curAnime || curAnime.id !== id) return;
           if (d.data && d.data.Media.recommendations.edges.length > 0) {
             const similar = d.data.Media.recommendations.edges.filter(e => isWatchableMedia(e.node.mediaRecommendation)).slice(0, 6).map(e => {
               const m = e.node.mediaRecommendation;
@@ -7367,8 +7330,7 @@
 
         const q = `query($ids: [Int]){ Page(page:1, perPage:50){ media(id_in: $ids, isAdult: false){ id idMal title { english romaji } episodes averageScore coverImage { large } nextAiringEpisode { episode } } } }`;
         try {
-          const res = await fetch('https://graphql.anilist.co', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q, variables: { ids: f } }) });
-          const d = await res.json();
+          const d = await CatimeApi.fetchGraphQL(q, { ids: f });
           if (d.errors?.length) {
             console.error('loadMyList GraphQL:', d.errors);
             tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text3)">Could not load list. Try again.</td></tr>';
@@ -7848,7 +7810,7 @@
 
       function refreshCwAndRecommendations() {
         loadCW();
-        loadRecommendations();
+        scheduleIdleTask(() => loadRecommendations(), 4000);
       }
 
       async function loadCW() {
@@ -7913,7 +7875,7 @@
 
       async function loadRecommendations() {
         const gen = ++recLoadGen;
-        const sourceIds = CatimeStorage.getRecommendationSourceIds();
+        const sourceIds = CatimeStorage.getRecommendationSourceIds().slice(0, 8);
         const excludeIds = new Set(CatimeStorage.getContinueWatching().map(x => x.id));
         const recSection = document.getElementById('recSection');
         const recScroll = document.getElementById('recScroll');
@@ -8114,6 +8076,30 @@
         heroTimer = setInterval(() => shiftHeroSlide(1), 5000);
       }
 
+      async function enrichHeroDescriptions(items) {
+        const heroPool = items.filter(item => item.banner).slice(0, 25);
+        const ids = (heroPool.length ? heroPool : items.slice(0, 12)).map(i => i.id);
+        if (!ids.length) return;
+        const q = `query($ids:[Int]){ Page(page:1,perPage:50){ media(id_in:$ids,isAdult:false){ id description(asHtml:false) } } } }`;
+        try {
+          const d = await CatimeApi.fetchGraphQL(q, { ids });
+          const byId = new Map((d.data?.Page?.media || []).map(m => [m.id, stripAnimeDescription(m.description)]));
+          items.forEach(item => {
+            const desc = byId.get(item.id);
+            if (desc) item.description = desc;
+          });
+          if (slidingHero.length) {
+            slidingHero.forEach(item => {
+              const desc = byId.get(item.id);
+              if (desc) item.description = desc;
+            });
+            updateHeroDisplay(slideIdx);
+          }
+        } catch (e) {
+          console.warn('Hero description fetch failed:', e);
+        }
+      }
+
       function initHeroSlider(list) {
         slidingHero = list.filter(item => item.banner).slice(0, 25);
         if (!slidingHero.length) slidingHero = list.slice(0, 25);
@@ -8226,7 +8212,10 @@
           return true;
         });
 
-        if (trendingPage === 1 && freshItems.length) initHeroSlider(freshItems);
+        if (trendingPage === 1 && freshItems.length) {
+          initHeroSlider(freshItems);
+          void enrichHeroDescriptions(freshItems);
+        }
 
         if (freshItems.length) appendHorizontalScroll('trendingScroll', freshItems, true);
 
@@ -8605,6 +8594,69 @@
         initScifiScroll();
       }
 
+      let homeFeedBootstrapped = false;
+      let homeLazyObserver = null;
+
+      function initHomeLazySections() {
+        const lazySections = [
+          { scrollId: 'topRatedScroll', statusId: 'topRatedStatus', load: loadTopRated },
+          { scrollId: 'popularScroll', statusId: 'mostPopularStatus', load: loadMostPopular },
+          { scrollId: 'actionScroll', statusId: 'actionStatus', load: loadAction },
+          { scrollId: 'romanceScroll', statusId: 'romanceStatus', load: loadRomance },
+          { scrollId: 'fantasyScroll', statusId: 'fantasyStatus', load: loadFantasy },
+          { scrollId: 'comedyScroll', statusId: 'comedyStatus', load: loadComedy },
+          { scrollId: 'scifiScroll', statusId: 'scifiStatus', load: loadScifi }
+        ];
+
+        lazySections.forEach(cfg => {
+          const status = document.getElementById(cfg.statusId);
+          if (status) status.textContent = '';
+        });
+
+        if (typeof IntersectionObserver === 'undefined') {
+          lazySections.forEach(cfg => cfg.load());
+          return;
+        }
+
+        if (homeLazyObserver) homeLazyObserver.disconnect();
+        homeLazyObserver = new IntersectionObserver(entries => {
+          entries.forEach(entry => {
+            if (!entry.isIntersecting) return;
+            const cfg = entry.target.__homeLazyLoad;
+            if (!cfg || cfg.loaded) return;
+            cfg.loaded = true;
+            homeLazyObserver.unobserve(entry.target);
+            cfg.load();
+          });
+        }, { rootMargin: '280px 0px' });
+
+        lazySections.forEach(cfg => {
+          const scroll = document.getElementById(cfg.scrollId);
+          const sec = scroll?.closest('.sec');
+          if (!sec) {
+            cfg.load();
+            return;
+          }
+          sec.__homeLazyLoad = { ...cfg, loaded: false };
+          homeLazyObserver.observe(sec);
+        });
+      }
+
+      function bootstrapHomeFeeds(onReturnVisit = false) {
+        if (homeFeedBootstrapped) {
+          loadCW();
+          if (!onReturnVisit) scheduleIdleTask(() => loadRecommendations(), 4000);
+          return;
+        }
+        homeFeedBootstrapped = true;
+        loadCW();
+        scheduleIdleTask(() => loadRecommendations(), 4000);
+        CatimeFeatures.loadAiringThisWeek();
+        CatimeFeatures.loadSeasonalHub();
+        loadTrending();
+        initHomeLazySections();
+      }
+
       syncSourceSelect();
       document.getElementById('dsSub').classList.toggle('on', curDS === 'sub');
       document.getElementById('dsDub').classList.toggle('on', curDS === 'dub');
@@ -8641,14 +8693,7 @@
         if (typeof window.refreshPrefsAfterSync === 'function') window.refreshPrefsAfterSync();
         const activePage = document.querySelector('.page.active');
         if (activePage?.id === 'page-home') {
-          loadTrending();
-          loadTopRated();
-          loadMostPopular();
-          loadAction();
-          loadRomance();
-          loadFantasy();
-          loadComedy();
-          loadScifi();
+          refreshCwAndRecommendations();
         }
       });
 
@@ -8705,18 +8750,7 @@
       }
       syncPlayerPrefButtons();
 
-      // load home page sections
-      refreshCwAndRecommendations();
-      CatimeFeatures.loadAiringThisWeek();
-      CatimeFeatures.loadSeasonalHub();
-      loadTrending();
-      loadTopRated();
-      loadMostPopular();
-      loadAction();
-      loadRomance();
-      loadFantasy();
-      loadComedy();
-      loadScifi();
+      bootstrapHomeFeeds();
 
       // Hero floating particles
       (function() {

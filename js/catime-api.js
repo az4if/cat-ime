@@ -120,7 +120,18 @@
     return data;
   }
 
-  global.CatimeApi = { fetchGraphQL, DEFAULT_TTL_MS, pruneCache };
+  global.CatimeApi = {
+    fetchGraphQL,
+    DEFAULT_TTL_MS,
+    pruneCache,
+    buildCacheKey,
+    shouldUseCache,
+    readCache,
+    writeCache,
+    CACHE_PREFIX,
+    MAX_CACHE_ENTRY_BYTES,
+    MAX_CACHE_ENTRIES
+  };
 
   // Clear expired / oversized legacy cache entries on load.
   pruneCache();

@@ -475,6 +475,7 @@
       ? global.PLAYER_SOURCES
       : [
           'megaplay',
+          // 'vidplus',
           // 'vidnest',
           // 'animepahe',
         ];

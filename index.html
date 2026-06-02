@@ -2498,6 +2498,14 @@
     color: white
   }
 
+  .db2.disabled,
+  .db2:disabled {
+    opacity: 0.38;
+    cursor: not-allowed;
+    pointer-events: none;
+    color: var(--text3)
+  }
+
   .mkb {
     font-family: 'DM Sans', sans-serif;
     font-size: 0.73rem;
@@ -5116,6 +5124,14 @@
     <span>Source failover hint</span>
     <button class="db2" id="spAutoFailover" onclick="toggleAutoFailover()">On</button>
   </div>
+  <div class="sp-row">
+    <span>Autoplay</span>
+    <button class="db2" type="button" id="spAutoplay" onclick="togglePlayerPref('autoplay')">On</button>
+  </div>
+  <div class="sp-row">
+    <span>Auto next episode</span>
+    <button class="db2" type="button" id="spAutonext" onclick="togglePlayerPref('autonext')">On</button>
+  </div>
 
   <div class="sp-sec">Watch Queue</div>
   <div id="queueList" class="queue-list"></div>
@@ -5466,6 +5482,13 @@
             <select id="watchSourceSelect" class="watch-source-select" aria-label="Video source"
               onchange="setSrc(this.value)"></select>
           </div>
+          <div class="watch-control-group" aria-label="Player options">
+            <span class="watch-control-label">Player</span>
+            <div class="dst">
+              <button class="db2" type="button" id="watchAutoplayBtn" onclick="togglePlayerPref('autoplay')">Autoplay</button>
+              <button class="db2" type="button" id="watchAutonextBtn" onclick="togglePlayerPref('autonext')">Auto next</button>
+            </div>
+          </div>
           <div class="watch-control-group" aria-label="Episode actions">
             <span class="watch-control-label">Actions</span>
             <button class="mkb" id="btnW" onclick="toggleWatchedCurrentEp()">Watched</button>
@@ -5713,7 +5736,7 @@
 
 <footer class="footer">
   <span class="footer-suggest">Have suggestions? Email <a href="mailto:thecatime@gmail.com">thecatime@gmail.com</a></span>
-  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v4.1</footer>
+  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v4.2</footer>
   <!-- Ya i added a cat emoticon in the footer deal with it :P -->
 
     <script>
@@ -6010,15 +6033,35 @@
       let curDS = localStorage.getItem('pref_ds') || 'sub';
       const PLAYER_SOURCES = [
         'megaplay',
+        // VidPlus: player.vidplus.to sends X-Frame-Options: SAMEORIGIN — cannot embed off-site (black iframe).
+        // 'vidplus',
         // 'vidnest',
         // 'animepahe',
       ];
       const DEFAULT_PLAYER_SOURCE = 'megaplay';
       const PLAYER_SOURCE_LABELS = {
         megaplay: 'MegaPlay',
+        // vidplus: 'VidPlus',
         // vidnest: 'Vidnest',
         // animepahe: 'AnimePahe',
       };
+      const PLAYER_EMBED_ORIGINS = new Set([
+        'https://animeplay.cfd',
+        'https://megaplay.buzz',
+        'https://player.vidplus.to',
+      ]);
+      const PLAYER_SOURCE_CAPS = {
+        megaplay: { autoplay: false, autonext: true },
+        vidplus: { autoplay: false, autonext: false },
+        vidnest: { autoplay: false, autonext: false },
+        animepahe: { autoplay: false, autonext: false },
+      };
+      function getPlayerSourceCaps(source) {
+        return PLAYER_SOURCE_CAPS[normalizePlayerSource(source)] || { autoplay: false, autonext: false };
+      }
+      function isPlayerPrefOn(key) {
+        return localStorage.getItem('pref_' + key) !== 'false';
+      }
       function normalizePlayerSource(s) {
         return PLAYER_SOURCES.includes(s) ? s : DEFAULT_PLAYER_SOURCE;
       }
@@ -7146,6 +7189,47 @@
         if (nextItem) nextItem.click();
       }
 
+      let playerAutoNextAt = 0;
+      function triggerPlayerAutoNext(episodeFromPlayer) {
+        if (!document.getElementById('page-watch')?.classList.contains('active')) return;
+        if (!curAnime) return;
+        if (!isPlayerPrefOn('autonext')) return;
+        const now = Date.now();
+        if (now - playerAutoNextAt < 2500) return;
+        playerAutoNextAt = now;
+
+        const src = normalizePlayerSource(localStorage.getItem('pref_source') || DEFAULT_PLAYER_SOURCE);
+        if (src === 'megaplay') goNextEpisode();
+      }
+
+      function installPlayerEmbedMessageBridge() {
+        if (window.__catimePlayerBridge) return;
+        window.__catimePlayerBridge = true;
+        window.addEventListener('message', (event) => {
+          if (!PLAYER_EMBED_ORIGINS.has(event.origin)) return;
+          let data = event.data;
+          if (typeof data === 'string') {
+            try {
+              data = JSON.parse(data);
+            } catch {
+              return;
+            }
+          }
+          if (!data || typeof data !== 'object') return;
+          if (data.event === 'complete' || data.type === 'episode-ended' || data.type === 'ended') {
+            triggerPlayerAutoNext(data.episode ?? data.ep);
+            return;
+          }
+          if (data.type === 'PLAYER_EVENT' && data.data) {
+            const ev = data.data.event;
+            if (ev === 'ended' || ev === 'complete') {
+              triggerPlayerAutoNext(data.data.episode);
+            }
+          }
+        });
+      }
+      installPlayerEmbedMessageBridge();
+
       function goPrevEpisode() {
         if (!curAnime || curEp <= 1) { toast('No previous episode'); return; }
         const prevItem = getEpListItem(curEp - 1);
@@ -7180,6 +7264,52 @@
         toast(!on ? 'Failover hints on' : 'Failover hints off');
       }
 
+      function syncPlayerPrefButtons() {
+        const caps = getPlayerSourceCaps(curSource);
+        const pairs = [
+          { key: 'autoplay', watchId: 'watchAutoplayBtn', spId: 'spAutoplay', label: 'Autoplay' },
+          { key: 'autonext', watchId: 'watchAutonextBtn', spId: 'spAutonext', label: 'Auto next' },
+        ];
+        pairs.forEach(({ key, watchId, spId, label }) => {
+          const supported = Boolean(caps[key]);
+          const on = isPlayerPrefOn(key);
+          [watchId, spId].forEach((id) => {
+            const b = document.getElementById(id);
+            if (!b) return;
+            b.disabled = !supported;
+            b.classList.toggle('disabled', !supported);
+            b.classList.toggle('on', supported && on);
+            b.setAttribute('aria-disabled', supported ? 'false' : 'true');
+            if (id === watchId) {
+              b.textContent = label;
+              b.title = supported
+                ? `${label}: ${on ? 'On' : 'Off'} (${getPlayerSourceLabel(curSource)})`
+                : `${label} is not available for ${getPlayerSourceLabel(curSource)}`;
+            } else {
+              b.textContent = supported ? (on ? 'On' : 'Off') : 'N/A';
+              b.title = supported
+                ? `${label}: ${on ? 'On' : 'Off'}`
+                : `Not supported by ${getPlayerSourceLabel(curSource)}`;
+            }
+          });
+        });
+      }
+
+      function togglePlayerPref(key) {
+        const caps = getPlayerSourceCaps(curSource);
+        if (!caps[key]) {
+          toast(`${key === 'autoplay' ? 'Autoplay' : 'Auto next'} is not available for ${getPlayerSourceLabel(curSource)}`);
+          return;
+        }
+        const storageKey = 'pref_' + key;
+        const on = isPlayerPrefOn(key);
+        localStorage.setItem(storageKey, on ? 'false' : 'true');
+        syncPlayerPrefButtons();
+        if (curAnime) loadPlayer(curEp, 'Episode ' + curEp, curEp, curAnime.eps);
+        toast(`${key === 'autoplay' ? 'Autoplay' : 'Auto next'} ${!on ? 'on' : 'off'}`);
+      }
+      window.togglePlayerPref = togglePlayerPref;
+
       function toggleDSShortcut() {
         setDS(curDS === 'sub' ? 'dub' : 'sub');
       }
@@ -7194,6 +7324,15 @@
         // }
         // if (source === 'animepahe') {
         //   return `https://vidnest.fun/animepahe/${id}/${ep}/${audio}`;
+        // }
+        // if (source === 'vidplus') {
+        //   const params = new URLSearchParams({
+        //     dub: mode === 'dub' ? 'true' : 'false',
+        //     autoplay: isPlayerPrefOn('autoplay') ? 'true' : 'false',
+        //     autonext: isPlayerPrefOn('autonext') ? 'true' : 'false',
+        //     nextbutton: 'true',
+        //   });
+        //   return `https://player.vidplus.to/embed/anime/${id}/${ep}?${params}`;
         // }
         if (source === 'megaplay') {
           return `https://animeplay.cfd/stream/ani/${id}/${ep}/${audio}`;
@@ -7215,6 +7354,7 @@
           sel.innerHTML = buildSourceSelectOptions();
           sel.value = curSource;
         });
+        syncPlayerPrefButtons();
       }
 
       function loadPlayer(epNum, epTitle, idx, total) {
@@ -8162,6 +8302,7 @@
         spAF.classList.toggle('on', afOn);
         spAF.textContent = afOn ? 'On' : 'Off';
       }
+      syncPlayerPrefButtons();
 
       // load home page sections
       refreshCwAndRecommendations();

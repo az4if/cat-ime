@@ -5,6 +5,9 @@
   const CW_KEY = 'cw';
   const CW_MAX = 10;
   const EVENT_CW = 'catime-cw-changed';
+  const MY_LIST_KEY = 'my_list';
+  const EPISODE_FOLLOWS_KEY = 'episode_follows';
+  const LEGACY_FOLLOWED_KEY = 'followed';
 
   function parseJSON(key, fallback) {
     try {
@@ -13,6 +16,109 @@
     } catch {
       return fallback;
     }
+  }
+
+  function normalizeAnimeId(id) {
+    const n = Number(id);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+
+  function normalizeIdList(raw) {
+    if (!Array.isArray(raw)) return [];
+    const seen = new Set();
+    const out = [];
+    raw.forEach((id) => {
+      const n = normalizeAnimeId(id);
+      if (n && !seen.has(n)) {
+        seen.add(n);
+        out.push(n);
+      }
+    });
+    return out;
+  }
+
+  function readIdList(primaryKey, legacyKey) {
+    const primary = normalizeIdList(parseJSON(primaryKey, []));
+    if (primary.length) return primary;
+    if (legacyKey) return normalizeIdList(parseJSON(legacyKey, []));
+    return [];
+  }
+
+  function writeIdList(key, ids) {
+    localStorage.setItem(key, JSON.stringify(normalizeIdList(ids)));
+  }
+
+  function migrateLegacyFollowed() {
+    const legacy = normalizeIdList(parseJSON(LEGACY_FOLLOWED_KEY, []));
+    if (!legacy.length) return;
+    if (!readIdList(MY_LIST_KEY, null).length) writeIdList(MY_LIST_KEY, legacy);
+    if (!readIdList(EPISODE_FOLLOWS_KEY, null).length) writeIdList(EPISODE_FOLLOWS_KEY, legacy);
+  }
+
+  migrateLegacyFollowed();
+
+  function getMyListIds() {
+    return readIdList(MY_LIST_KEY, LEGACY_FOLLOWED_KEY);
+  }
+
+  function setMyListIds(ids) {
+    writeIdList(MY_LIST_KEY, ids);
+    writeIdList(LEGACY_FOLLOWED_KEY, ids);
+  }
+
+  function isOnMyList(id) {
+    const n = normalizeAnimeId(id);
+    return n ? getMyListIds().includes(n) : false;
+  }
+
+  function toggleMyListId(id) {
+    const n = normalizeAnimeId(id);
+    if (!n) return { onList: false, added: false };
+    let ids = getMyListIds();
+    const idx = ids.indexOf(n);
+    if (idx > -1) {
+      ids = ids.filter((x) => x !== n);
+      setMyListIds(ids);
+      return { onList: false, added: false };
+    }
+    ids.push(n);
+    if (!localStorage.getItem('stat_' + n)) localStorage.setItem('stat_' + n, 'spl');
+    setMyListIds(ids);
+    return { onList: true, added: true };
+  }
+
+  function removeFromMyList(id) {
+    const n = normalizeAnimeId(id);
+    if (!n) return;
+    setMyListIds(getMyListIds().filter((x) => x !== n));
+  }
+
+  function getEpisodeFollowIds() {
+    return readIdList(EPISODE_FOLLOWS_KEY, LEGACY_FOLLOWED_KEY);
+  }
+
+  function setEpisodeFollowIds(ids) {
+    writeIdList(EPISODE_FOLLOWS_KEY, ids);
+  }
+
+  function isEpisodeFollowed(id) {
+    const n = normalizeAnimeId(id);
+    return n ? getEpisodeFollowIds().includes(n) : false;
+  }
+
+  function toggleEpisodeFollowId(id) {
+    const n = normalizeAnimeId(id);
+    if (!n) return { following: false, added: false };
+    let ids = getEpisodeFollowIds();
+    const idx = ids.indexOf(n);
+    if (idx > -1) {
+      ids = ids.filter((x) => x !== n);
+      setEpisodeFollowIds(ids);
+      return { following: false, added: false };
+    }
+    ids.push(n);
+    setEpisodeFollowIds(ids);
+    return { following: true, added: true };
   }
 
   function getContinueWatching() {
@@ -47,8 +153,9 @@
     notifyCW();
   }
 
+  /** @deprecated use getMyListIds */
   function getFollowed() {
-    return parseJSON('followed', []);
+    return getMyListIds();
   }
 
   function getMostWatchedIds(limit = 5) {
@@ -74,7 +181,7 @@
       ids.push(n);
     };
     getContinueWatching().slice(0, 10).forEach(x => add(x.id));
-    getFollowed().slice(0, 10).forEach(add);
+    getMyListIds().slice(0, 10).forEach(add);
     getMostWatchedIds(5).forEach(add);
     return ids.slice(0, 15);
   }
@@ -100,10 +207,22 @@
     updateContinueWatching,
     removeFromContinueWatching,
     clearContinueWatching,
+    getMyListIds,
+    setMyListIds,
+    isOnMyList,
+    toggleMyListId,
+    removeFromMyList,
+    getEpisodeFollowIds,
+    setEpisodeFollowIds,
+    isEpisodeFollowed,
+    toggleEpisodeFollowId,
     getFollowed,
     getMostWatchedIds,
     getRecommendationSourceIds,
     onContinueWatchingChanged,
-    EVENT_CW
+    normalizeAnimeId,
+    EVENT_CW,
+    MY_LIST_KEY,
+    EPISODE_FOLLOWS_KEY
   };
 })(window);

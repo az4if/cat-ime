@@ -254,6 +254,7 @@
       data.version >= 1 &&
       (Array.isArray(data.cw) ||
         Array.isArray(data.followed) ||
+        Array.isArray(data.my_list) ||
         (data.watched && typeof data.watched === 'object'))
     );
   }
@@ -261,7 +262,8 @@
   function isFlatStorageBackup(data) {
     if (!data || typeof data !== 'object' || isStructuredAppBackup(data)) return false;
     return Object.keys(data).some((key) =>
-      key === 'cw' || key === 'followed' || key.startsWith('w_') || key.startsWith('stat_') ||
+      key === 'cw' || key === 'followed' || key === 'my_list' || key === 'episode_follows' ||
+      key.startsWith('w_') || key.startsWith('stat_') ||
       key.startsWith('pref_') || key === 'user_ratings' || key === 'watch_queue' ||
       key === 'watch_days' || key === 'custom_theme' || key === 'lastReadNotif'
     );
@@ -315,7 +317,8 @@
   window.importAppBackup = importAppBackup;
 
   function collectAppDataForSync() {
-    const followed = parseLocalJSON('followed', []);
+    const myList = CatimeStorage.getMyListIds();
+    const episodeFollows = CatimeStorage.getEpisodeFollowIds();
     const watched = {};
     const statuses = {};
 
@@ -324,7 +327,7 @@
       if (key.startsWith('stat_')) statuses[key] = localStorage.getItem(key);
     });
 
-    followed.forEach(id => {
+    myList.forEach(id => {
       const watchKey = 'w_' + id;
       const statusKey = 'stat_' + id;
       if (localStorage.getItem(watchKey) !== null) watched[watchKey] = localStorage.getItem(watchKey);
@@ -335,7 +338,9 @@
       version: 3,
       syncedAt: new Date().toISOString(),
       cw: parseLocalJSON('cw', []),
-      followed,
+      my_list: myList,
+      episode_follows: episodeFollows,
+      followed: myList,
       watched,
       statuses,
       preferences: (() => {
@@ -480,7 +485,8 @@
   }
 
   function isAppDataStorageKey(key) {
-    return key === 'cw' || key === 'followed' || key === 'lastReadNotif' || key === 'custom_theme' ||
+    return key === 'cw' || key === 'followed' || key === 'my_list' || key === 'episode_follows' ||
+      key === 'lastReadNotif' || key === 'custom_theme' ||
       key === 'user_ratings' || key === 'watch_queue' || key === 'watch_days' ||
       key.startsWith('w_') || key.startsWith('stat_') || key.startsWith('pref_');
   }
@@ -519,7 +525,16 @@
       if (replaceWatchKeys) clearWatchProgressKeys();
 
       if (Array.isArray(appData.cw)) localStorage.setItem('cw', JSON.stringify(appData.cw));
-      if (Array.isArray(appData.followed)) localStorage.setItem('followed', JSON.stringify(appData.followed));
+
+      const myList = Array.isArray(appData.my_list)
+        ? appData.my_list
+        : (Array.isArray(appData.followed) ? appData.followed : null);
+      if (myList) CatimeStorage.setMyListIds(myList);
+
+      const episodeFollows = Array.isArray(appData.episode_follows)
+        ? appData.episode_follows
+        : (Array.isArray(appData.followed) ? appData.followed : null);
+      if (episodeFollows) CatimeStorage.setEpisodeFollowIds(episodeFollows);
 
       if (appData.watched && typeof appData.watched === 'object') {
         Object.entries(appData.watched).forEach(([key, value]) => {
@@ -572,7 +587,9 @@
   function hasLocalAppData() {
     return Boolean(
       localStorage.getItem('cw') ||
+      localStorage.getItem('my_list') ||
       localStorage.getItem('followed') ||
+      localStorage.getItem('episode_follows') ||
       Object.keys(localStorage).some(key => key.startsWith('w_') || key.startsWith('stat_'))
     );
   }
@@ -5859,7 +5876,8 @@
           <div class="watch-control-group" aria-label="Episode actions">
             <span class="watch-control-label">Actions</span>
             <button class="mkb" id="btnW" onclick="toggleWatchedCurrentEp()">Watched</button>
-            <button class="mkb" id="btnFollow" onclick="toggleFollow()">Follow</button>
+            <button class="mkb" id="btnMyList" onclick="toggleMyList()">Add to list</button>
+            <button class="mkb" id="btnFollow" onclick="toggleEpisodeFollow()">Follow</button>
             <button class="mkb" id="btnQueue" onclick="addCurrentToQueue()">+ Queue</button>
             <button class="mkb" onclick="shareCurrentAnime()">Share</button>
           </div>
@@ -6115,7 +6133,7 @@
 
 <footer class="footer">
   <span class="footer-suggest">Have suggestions? Email <a href="mailto:thecatime@gmail.com">thecatime@gmail.com</a></span>
-  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v4.6</footer>
+  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v4.7</footer>
   <!-- Ya i added a cat emoticon in the footer deal with it :P -->
 
     <script>
@@ -6321,15 +6339,15 @@
 
       function clearList() {
         if (!confirm('Clear your entire anime list? This cannot be undone.')) return;
-        const f = JSON.parse(localStorage.getItem('followed') || '[]');
+        const f = CatimeStorage.getMyListIds();
         f.forEach(id => localStorage.removeItem('stat_' + id));
-        localStorage.removeItem('followed');
+        CatimeStorage.setMyListIds([]);
         loadMyList();
         toast('My list cleared');
       }
 
       function exportList() {
-        const f = JSON.parse(localStorage.getItem('followed') || '[]');
+        const f = CatimeStorage.getMyListIds();
         if (!f.length) { toast('Your list is empty'); return; }
         const data = f.map(id => ({
           id,
@@ -6356,9 +6374,10 @@
         a.download = 'cat-ime-backup.json';
         a.click();
         const cwCount = Array.isArray(payload.cw) ? payload.cw.length : 0;
-        const listCount = Array.isArray(payload.followed) ? payload.followed.length : 0;
+        const listCount = Array.isArray(payload.my_list) ? payload.my_list.length : (Array.isArray(payload.followed) ? payload.followed.length : 0);
+        const followCount = Array.isArray(payload.episode_follows) ? payload.episode_follows.length : 0;
         const watchedCount = payload.watched ? Object.keys(payload.watched).length : 0;
-        toast(`Exported list (${listCount}), CW (${cwCount}), progress (${watchedCount} shows)`);
+        toast(`Exported list (${listCount}), follows (${followCount}), CW (${cwCount}), progress (${watchedCount} shows)`);
       }
 
       function importAllData() {
@@ -6527,9 +6546,9 @@
       }
 
       async function fetchNotifications() {
-        const f = JSON.parse(localStorage.getItem('followed') || '[]');
+        const f = CatimeStorage.getEpisodeFollowIds();
         if (!f.length) {
-          document.getElementById('npList').innerHTML = '<div style="padding:1rem;text-align:center;color:var(--text3);font-size:0.8rem">Follow an anime to get notifications.</div>';
+          document.getElementById('npList').innerHTML = '<div style="padding:1rem;text-align:center;color:var(--text3);font-size:0.8rem">Follow a show to get upcoming episode alerts.</div>';
           document.getElementById('ndot').style.display = 'none';
           return;
         }
@@ -6966,7 +6985,8 @@
         clearCountdown();
         buildEpList(a, initialEps, []);
         loadPlayer(startEp, `Episode ${startEp}`, startEp, initialEps);
-        updateFollowBtn();
+        updateMyListBtn();
+        updateEpisodeFollowBtn();
         fetchSeasons(a.id);
         fetchAiringInfo(a.id);
         fetchSimilarAnime(a.id);
@@ -7257,28 +7277,40 @@
         } catch (e) { }
       }
 
-      function toggleFollow() {
-        let f = JSON.parse(localStorage.getItem('followed') || '[]');
-        const idx = f.indexOf(curAnime.id);
-        if (idx > -1) f.splice(idx, 1);
-        else f.push(curAnime.id);
-        localStorage.setItem('followed', JSON.stringify(f));
-        updateFollowBtn();
-        toast(idx > -1 ? 'Notifications muted' : 'You will be notified for new episodes');
+      function toggleMyList() {
+        if (!curAnime?.id) return;
+        const result = CatimeStorage.toggleMyListId(curAnime.id);
+        updateMyListBtn();
+        toast(result.added ? 'Added to your list' : 'Removed from your list');
         loadMyList();
-        fetchNotifications();
       }
 
-      // also spaghetti code for follow button state management, sue me :P
+      function toggleEpisodeFollow() {
+        if (!curAnime?.id) return;
+        const result = CatimeStorage.toggleEpisodeFollowId(curAnime.id);
+        updateEpisodeFollowBtn();
+        toast(result.added ? 'Following — new episodes will show in notifications' : 'Unfollowed — no episode alerts');
+        fetchNotifications();
+        if (document.getElementById('page-list')?.classList.contains('active')) loadUpcomingCalendar();
+      }
 
-      function updateFollowBtn() {
+      function updateMyListBtn() {
         if (!curAnime) return;
-        let f = JSON.parse(localStorage.getItem('followed') || '[]');
-        const on = f.includes(curAnime.id);
+        const on = CatimeStorage.isOnMyList(curAnime.id);
+        const b = document.getElementById('btnMyList');
+        if (b) {
+          b.classList.toggle('on', on);
+          b.textContent = on ? 'On list' : 'Add to list';
+        }
+      }
+
+      function updateEpisodeFollowBtn() {
+        if (!curAnime) return;
+        const on = CatimeStorage.isEpisodeFollowed(curAnime.id);
         const b = document.getElementById('btnFollow');
         if (b) {
           b.classList.toggle('on', on);
-          b.textContent = on ? 'Unfollow' : 'Follow';
+          b.textContent = on ? 'Following' : 'Follow';
         }
       }
 
@@ -7323,7 +7355,7 @@
         if (!rows.length) {
           const prefs = getListFilterPrefs();
           const msg = prefs.status === 'all'
-            ? 'No anime in your list. Start following some!'
+            ? 'No anime in your list. Use Add to list on a show page.'
             : 'No anime match this filter.';
           tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text3)">${msg}</td></tr>`;
           return;
@@ -7334,7 +7366,7 @@
           const opts = statuses.map(s => `<option value="${s.cls}" ${row.status === s.cls ? 'selected' : ''}>${s.label}</option>`).join('');
           const objJson = JSON.stringify(row.obj).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
           const userRate = ratings[row.id] ? ratings[row.id] + '/10' : '—';
-          return `<tr><td class="tn" onclick='watchAnime(${objJson})'>${row.title}</td><td><select class="sb2 ${row.status}" onchange="changeStat(${row.id}, this)" style="border:none;cursor:pointer">${opts}</select></td><td style="color:var(--text2)">${row.watchedCount}/${row.totalEps}</td><td style="color:var(--yellow)">${row.scoreStr}</td><td style="color:var(--accent)">${userRate}</td><td><button class="lb" onclick="toggleFollowFor(${row.id}, this)">Unfollow</button></td></tr>`;
+          return `<tr><td class="tn" onclick='watchAnime(${objJson})'>${row.title}</td><td><select class="sb2 ${row.status}" onchange="changeStat(${row.id}, this)" style="border:none;cursor:pointer">${opts}</select></td><td style="color:var(--text2)">${row.watchedCount}/${row.totalEps}</td><td style="color:var(--yellow)">${row.scoreStr}</td><td style="color:var(--accent)">${userRate}</td><td><button class="lb" onclick="removeFromMyListRow(${row.id}, this)">Remove</button></td></tr>`;
         }).join('');
       }
 
@@ -7352,12 +7384,12 @@
 
       async function loadMyList() {
         syncListFilterControls();
-        const f = JSON.parse(localStorage.getItem('followed') || '[]');
+        const f = CatimeStorage.getMyListIds();
         const tbody = document.querySelector('.lt tbody');
         if (!tbody) return;
         if (!f.length) {
           myListCache = [];
-          tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text3)">No anime in your list. Start following some!</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text3)">No anime in your list. Use Add to list on a show page.</td></tr>';
           return;
         }
 
@@ -7365,8 +7397,14 @@
         try {
           const res = await fetch('https://graphql.anilist.co', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q, variables: { ids: f } }) });
           const d = await res.json();
-          if (d.data) {
-            myListCache = d.data.Page.media.map(m => {
+          if (d.errors?.length) {
+            console.error('loadMyList GraphQL:', d.errors);
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text3)">Could not load list. Try again.</td></tr>';
+            return;
+          }
+          if (d.data?.Page?.media) {
+            const byId = new Map(d.data.Page.media.map((m) => [m.id, m]));
+            myListCache = f.map((id) => byId.get(id)).filter(Boolean).map(m => {
               const rawTitle = m.title.english || m.title.romaji || 'Unknown';
               const totalEps = m.episodes ?? m.nextAiringEpisode?.episode ?? 1;
               const watched = JSON.parse(localStorage.getItem('w_' + m.id) || '[]');
@@ -7386,15 +7424,20 @@
               };
             });
             applyListFilters();
+          } else {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text3)">Could not load list.</td></tr>';
           }
-        } catch (e) { console.error('loadMyList error:', e); }
+        } catch (e) {
+          console.error('loadMyList error:', e);
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text3)">Could not load list.</td></tr>';
+        }
       }
 
       async function loadUpcomingCalendar() {
-        const f = JSON.parse(localStorage.getItem('followed') || '[]');
+        const f = CatimeStorage.getEpisodeFollowIds();
         const grid = document.getElementById('calendarGrid');
         if (!f.length) { 
-          grid.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3);font-size:0.82rem">Follow some anime to see upcoming releases!</div>';
+          grid.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3);font-size:0.82rem">Follow shows for upcoming episode alerts (Follow button on the watch page).</div>';
           return;
         }
 
@@ -7438,22 +7481,19 @@
               </div>`;
             });
           } else {
-            grid.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3);font-size:0.82rem">No upcoming releases found for followed anime</div>';
+            grid.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3);font-size:0.82rem">No upcoming episodes for shows you follow</div>';
           }
         } catch (e) {
           console.error('loadUpcomingCalendar error:', e);
           grid.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3);font-size:0.82rem">Error loading upcoming releases</div>';
         }
       }
-      function toggleFollowFor(id, btn) {
-        let f = JSON.parse(localStorage.getItem('followed') || '[]');
-        f = f.filter(x => x !== id);
-        localStorage.setItem('followed', JSON.stringify(f));
-        myListCache = myListCache.filter(row => row.id !== id);
+      function removeFromMyListRow(id, btn) {
+        CatimeStorage.removeFromMyList(id);
+        myListCache = myListCache.filter(row => row.id !== Number(id));
         applyListFilters();
-        toast('Unfollowed');
-        fetchNotifications();
-        if (curAnime && curAnime.id === id) updateFollowBtn();
+        toast('Removed from list');
+        if (curAnime && Number(curAnime.id) === Number(id)) updateMyListBtn();
       }
 
       const EP_DIVIDER_SIZE = 100;

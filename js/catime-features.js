@@ -296,7 +296,7 @@
         totalEps += eps.length;
       }
     }
-    const followed = parseJSON('followed', []);
+    const followed = global.CatimeStorage ? global.CatimeStorage.getMyListIds() : parseJSON('followed', []);
     const completed = followed.filter((id) => localStorage.getItem('stat_' + id) === 'sc').length;
     const days = parseJSON(WATCH_DAYS_KEY, []);
     return {
@@ -476,14 +476,14 @@
   }
 
   async function pickRandomFromList() {
-    const f = parseJSON('followed', []);
+    const f = global.CatimeStorage ? global.CatimeStorage.getMyListIds() : parseJSON('followed', []);
     const planOnly = f.filter((id) => {
       const st = localStorage.getItem('stat_' + id);
       return st === 'spl' || st === 'sw' || !st;
     });
     const ids = planOnly.length ? planOnly : f;
     if (!ids.length) {
-      if (typeof global.toast === 'function') global.toast('Follow some anime first!');
+      if (typeof global.toast === 'function') global.toast('Add some anime to your list first!');
       return;
     }
     const pick = ids[Math.floor(Math.random() * ids.length)];

@@ -143,6 +143,37 @@
     };
   }
 
+  function stripDetailDescription(raw) {
+    if (!raw) return '';
+    return String(raw).replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+  }
+
+  function expandDetailDescription(el) {
+    if (!el || el.classList.contains('detail-desc-expanded')) return;
+    const full = el.dataset.fullText;
+    if (!full) return;
+    el.textContent = full;
+    el.classList.add('detail-desc-expanded');
+    el.classList.remove('detail-desc-truncated');
+    el.removeAttribute('role');
+    el.removeAttribute('tabindex');
+    el.removeAttribute('aria-label');
+    el.setAttribute('aria-expanded', 'true');
+  }
+
+  function bindDetailDescriptionExpand(body) {
+    const descEl = body?.querySelector('.detail-desc.detail-desc-truncated');
+    if (!descEl) return;
+    const onExpand = (e) => {
+      e.preventDefault();
+      expandDetailDescription(descEl);
+    };
+    descEl.addEventListener('click', onExpand);
+    descEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') onExpand(e);
+    });
+  }
+
   async function openDetailDrawer(animeOrId) {
     const id = typeof animeOrId === 'object' ? animeOrId.id : animeOrId;
     const drawer = document.getElementById('detailDrawer');
@@ -159,7 +190,11 @@
       const card = mediaToCard(m);
       const genres = (m.genres || []).join(' · ') || '—';
       const season = m.season && m.seasonYear ? `${m.season} ${m.seasonYear}` : '';
-      const desc = (m.description || '').replace(/<[^>]+>/g, '').slice(0, 420);
+      const fullDesc = stripDetailDescription(m.description);
+      const descPreviewLimit = 420;
+      const isDescTruncated = fullDesc.length > descPreviewLimit;
+      const descPreview = isDescTruncated ? fullDesc.slice(0, descPreviewLimit) : fullDesc;
+      const descSafe = global.sanitizeHTML ? global.sanitizeHTML(descPreview) : descPreview;
       const userRate = getRatings()[m.id] || '';
       const userNote = getNotes()[m.id] || '';
       const objJson = JSON.stringify(card).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
@@ -171,7 +206,7 @@
             <h2>${global.sanitizeHTML ? global.sanitizeHTML(card.title) : card.title}</h2>
             <div class="detail-meta">Score ${card.score} · ${card.eps || '?'} eps · ${m.status || ''}${season ? ' · ' + season : ''}</div>
             <div class="detail-genres">${genres}</div>
-            <p class="detail-desc">${global.sanitizeHTML ? global.sanitizeHTML(desc) : desc}${(m.description || '').length > 420 ? '…' : ''}</p>
+            <p class="detail-desc${isDescTruncated ? ' detail-desc-truncated' : ''}"${isDescTruncated ? ' role="button" tabindex="0" aria-label="Show full description"' : ''}>${descSafe}${isDescTruncated ? '…' : ''}</p>
             <div class="detail-actions">
               <button class="btn-p" onclick='closeDetailDrawer(); watchAnime(${objJson})'><span class="icon-play-sm" aria-hidden="true"></span>Watch</button>
               <button class="mkb" onclick='CatimeFeatures.addToQueue(${objJson})'>+ Queue</button>
@@ -187,6 +222,9 @@
             <textarea class="detail-note" id="detailNoteInput" placeholder="Personal notes..." maxlength="500" onblur="CatimeFeatures.saveDetailNote(${m.id}, this.value)">${global.sanitizeHTML ? global.sanitizeHTML(userNote) : userNote}</textarea>
           </div>
         </div>`;
+      const descEl = body.querySelector('.detail-desc.detail-desc-truncated');
+      if (descEl && isDescTruncated) descEl.dataset.fullText = fullDesc;
+      bindDetailDescriptionExpand(body);
     } catch (e) {
       body.innerHTML = '<div class="detail-loading">Error loading details.</div>';
     }

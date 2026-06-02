@@ -1767,17 +1767,26 @@
     flex: 0 1 auto
   }
 
-  .hero-inner.hero-clickable {
-    cursor: pointer
-  }
-
-  .hero-inner.hero-clickable .htitle {
+  .htitle.hero-title-link {
+    cursor: pointer;
     transition: color 0.15s ease
   }
 
-  .hero-inner.hero-clickable:hover .htitle,
-  .hero-inner.hero-clickable:focus-visible .htitle {
-    color: var(--accent)
+  .htitle.hero-title-link:hover,
+  .htitle.hero-title-link:focus-visible {
+    color: var(--accent);
+    outline: none
+  }
+
+  .hsub.hero-desc-link {
+    cursor: pointer;
+    transition: color 0.15s ease
+  }
+
+  .hsub.hero-desc-link:hover,
+  .hsub.hero-desc-link:focus-visible {
+    color: var(--text);
+    outline: none
   }
 
   .hero-tag {
@@ -4909,7 +4918,35 @@
   }
   .detail-content h2 { font-family: 'Syne', sans-serif; font-size: 1.15rem; margin: 0 0 0.35rem; line-height: 1.25; }
   .detail-meta, .detail-genres { font-size: 0.78rem; color: var(--text2); margin-bottom: 0.4rem; }
-  .detail-desc { font-size: 0.82rem; color: var(--text2); line-height: 1.55; margin: 0.5rem 0; }
+  .detail-desc {
+    font-size: 0.82rem;
+    color: var(--text2);
+    line-height: 1.55;
+    margin: 0.5rem 0
+  }
+
+  .detail-desc.detail-desc-truncated {
+    cursor: pointer;
+    transition: color 0.15s ease
+  }
+
+  .detail-desc.detail-desc-truncated:hover,
+  .detail-desc.detail-desc-truncated:focus-visible {
+    color: var(--text);
+    outline: none
+  }
+
+  .detail-desc.detail-desc-truncated::after {
+    content: ' Read more';
+    color: var(--accent);
+    font-weight: 600
+  }
+
+  .detail-desc.detail-desc-expanded {
+    cursor: default;
+    color: var(--text2);
+    max-height: none
+  }
   .detail-actions { display: flex; flex-wrap: wrap; gap: 0.45rem; margin: 0.6rem 0; }
   .detail-rate label { font-size: 0.72rem; color: var(--text3); margin-right: 0.4rem; }
   .detail-rate select, .detail-note {
@@ -5676,7 +5713,7 @@
 
 <footer class="footer">
   <span class="footer-suggest">Have suggestions? Email <a href="mailto:thecatime@gmail.com">thecatime@gmail.com</a></span>
-  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v4.0</footer>
+  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v4.1</footer>
   <!-- Ya i added a cat emoticon in the footer deal with it :P -->
 
     <script>
@@ -7496,6 +7533,12 @@
         if (item) watchAnime(item);
       }
 
+      function openHeroDetail(idx) {
+        const i = idx != null ? idx : slideIdx;
+        const item = slidingHero[i];
+        if (item) CatimeFeatures.openDetailDrawer(item.id);
+      }
+
       function updateHeroDisplay(idx) {
         const item = slidingHero[idx];
         const tag = document.getElementById('heroTag');
@@ -7505,11 +7548,19 @@
         const watchBtn = document.getElementById('heroWatchBtn');
         if (!item || !tag || !title || !sub || !inner) return;
         title.textContent = item.title;
-        sub.textContent = item.description || 'Press Watch to start streaming this series.';
-        inner.classList.add('hero-clickable');
-        inner.setAttribute('role', 'button');
-        inner.setAttribute('tabindex', '0');
-        inner.setAttribute('aria-label', `Watch ${item.title}`);
+        sub.textContent = item.description || 'Click here for full details about this anime.';
+        inner.classList.remove('hero-clickable');
+        inner.removeAttribute('role');
+        inner.removeAttribute('tabindex');
+        inner.removeAttribute('aria-label');
+        title.classList.add('hero-title-link');
+        title.setAttribute('role', 'button');
+        title.setAttribute('tabindex', '0');
+        title.setAttribute('aria-label', `Watch ${item.title}`);
+        sub.classList.add('hero-desc-link');
+        sub.setAttribute('role', 'button');
+        sub.setAttribute('tabindex', '0');
+        sub.setAttribute('aria-label', `View details for ${item.title}`);
         if (watchBtn) watchBtn.classList.remove('hero-watch-hidden');
       }
 
@@ -7574,20 +7625,34 @@
       }
 
       function setupHeroInnerClick() {
-        const inner = document.getElementById('heroInner');
-        if (!inner || inner.dataset.heroBound) return;
-        inner.dataset.heroBound = '1';
-        inner.addEventListener('click', (e) => {
-          if (e.target.closest('#heroBtns')) return;
-          if (slidingHero.length) openHeroAnime();
-        });
-        inner.addEventListener('keydown', (e) => {
-          if (e.target.closest('#heroBtns')) return;
-          if ((e.key === 'Enter' || e.key === ' ') && slidingHero.length) {
-            e.preventDefault();
-            openHeroAnime();
-          }
-        });
+        const title = document.getElementById('heroTitle');
+        const sub = document.getElementById('heroSub');
+        if (title && !title.dataset.heroBound) {
+          title.dataset.heroBound = '1';
+          title.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (slidingHero.length) openHeroAnime();
+          });
+          title.addEventListener('keydown', (e) => {
+            if ((e.key === 'Enter' || e.key === ' ') && slidingHero.length) {
+              e.preventDefault();
+              openHeroAnime();
+            }
+          });
+        }
+        if (sub && !sub.dataset.heroBound) {
+          sub.dataset.heroBound = '1';
+          sub.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (slidingHero.length) openHeroDetail();
+          });
+          sub.addEventListener('keydown', (e) => {
+            if ((e.key === 'Enter' || e.key === ' ') && slidingHero.length) {
+              e.preventDefault();
+              openHeroDetail();
+            }
+          });
+        }
         const watchBtn = document.getElementById('heroWatchBtn');
         if (watchBtn) {
           watchBtn.addEventListener('click', (e) => {

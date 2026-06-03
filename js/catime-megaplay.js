@@ -56,12 +56,18 @@
     }
     if (transport.mode === 'supabase') {
       const url = `${transport.base}?path=${encodeURIComponent(pathWithQuery)}`;
-      return fetch(url, {
+      const res = await fetch(url, {
         headers: {
           Authorization: `Bearer ${transport.anonKey}`,
           apikey: transport.anonKey,
         },
       });
+      if (res.status === 404) {
+        const err = new Error('PROXY_NOT_DEPLOYED');
+        err.code = 'PROXY_NOT_DEPLOYED';
+        throw err;
+      }
+      return res;
     }
     return fetch(`${ANIKOTO_DIRECT}${pathWithQuery}`);
   }

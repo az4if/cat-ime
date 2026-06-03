@@ -6132,7 +6132,7 @@
 
 <footer class="footer">
   <span class="footer-suggest">Have suggestions? Email <a href="mailto:thecatime@gmail.com">thecatime@gmail.com</a></span>
-  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v4.16</footer>
+  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v4.17</footer>
   <!-- Ya i added a cat emoticon in the footer deal with it :P -->
 
     <script>
@@ -7761,8 +7761,10 @@
             console.warn('MegaPlay resolve failed:', e);
             if (e?.code === 'OPEN_VIA_HTTP' || location.protocol === 'file:') {
               toast('Open via npm start — do not double-click index.html (file:// blocks streams)');
+            } else if (e?.code === 'PROXY_NOT_DEPLOYED') {
+              toast('Live streams need one-time deploy: supabase functions deploy anikoto-proxy');
             } else {
-              toast('Could not find stream — refresh or check Anikoto proxy is deployed');
+              toast('Could not find stream — try again in a moment');
             }
           }
         }

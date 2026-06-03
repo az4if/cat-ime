@@ -10,8 +10,9 @@ describe('index.html sanity', () => {
   it('loads core script modules in order', () => {
     const storage = html.indexOf('js/catime-storage.js');
     const appData = html.indexOf('js/catime-app-data.js');
+    const megaplay = html.indexOf('js/catime-megaplay.js');
     const features = html.indexOf('js/catime-features.js');
-    assert.ok(storage > 0 && appData > storage && features > appData);
+    assert.ok(storage > 0 && appData > storage && megaplay > appData && features > megaplay);
   });
 
   it('exposes list and follow controls on watch page', () => {

@@ -31,8 +31,14 @@ describe('player auto-next + watched (static)', () => {
   it('listens for player end events from embed origins', () => {
     assert.match(html, /installPlayerEmbedMessageBridge/);
     assert.match(html, /PLAYER_EMBED_ORIGINS/);
-    assert.match(html, /episode-ended|data\.event === 'complete'/);
+    assert.match(html, /CatimeMegaplay\?\.isCompleteEvent/);
     assert.match(html, /triggerPlayerAutoNext\(data\.episode/);
+  });
+
+  it('resolves megaplay via CatimeMegaplay (not animeplay wrapper)', () => {
+    assert.match(html, /js\/catime-megaplay\.js/);
+    assert.match(html, /CatimeMegaplay\.resolveStreamUrl/);
+    assert.doesNotMatch(html, /animeplay\.cfd\/stream\/ani/);
   });
 
   it('megaplay source supports autonext cap', () => {

@@ -26,6 +26,7 @@
 <script src="js/catime-storage.js"></script>
 <script src="js/catime-app-data.js"></script>
 <script src="js/catime-api.js"></script>
+<script src="js/catime-megaplay.js"></script>
 <script src="js/catime-ui.js"></script>
 <script src="js/catime-features.js"></script>
 <script src="js/catime-comments.js"></script>
@@ -6131,7 +6132,7 @@
 
 <footer class="footer">
   <span class="footer-suggest">Have suggestions? Email <a href="mailto:thecatime@gmail.com">thecatime@gmail.com</a></span>
-  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v4.11</footer>
+  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v4.15</footer>
   <!-- Ya i added a cat emoticon in the footer deal with it :P -->
 
     <script>
@@ -7624,15 +7625,9 @@
             }
           }
           if (!data || typeof data !== 'object') return;
-          if (data.event === 'complete' || data.type === 'episode-ended' || data.type === 'ended') {
-            triggerPlayerAutoNext(data.episode ?? data.ep);
+          if (window.CatimeMegaplay?.isCompleteEvent(data)) {
+            triggerPlayerAutoNext(data.episode ?? data.ep ?? curEp);
             return;
-          }
-          if (data.type === 'PLAYER_EVENT' && data.data) {
-            const ev = data.data.event;
-            if (ev === 'ended' || ev === 'complete') {
-              triggerPlayerAutoNext(data.data.episode);
-            }
           }
         });
       }
@@ -7717,32 +7712,6 @@
         setDS(curDS === 'sub' ? 'dub' : 'sub');
       }
 
-      function buildPlayerEmbedUrl(anilistId, epNum, mode, source) {
-        const id = Number(anilistId);
-        const ep = Number(epNum);
-        const audio = mode === 'dub' ? 'dub' : 'sub';
-
-        // if (source === 'vidnest') {
-        //   return `https://vidnest.fun/anime/${id}/${ep}/${audio}`;
-        // }
-        // if (source === 'animepahe') {
-        //   return `https://vidnest.fun/animepahe/${id}/${ep}/${audio}`;
-        // }
-        // if (source === 'vidplus') {
-        //   const params = new URLSearchParams({
-        //     dub: mode === 'dub' ? 'true' : 'false',
-        //     autoplay: isPlayerPrefOn('autoplay') ? 'true' : 'false',
-        //     autonext: isPlayerPrefOn('autonext') ? 'true' : 'false',
-        //     nextbutton: 'true',
-        //   });
-        //   return `https://player.vidplus.to/embed/anime/${id}/${ep}?${params}`;
-        // }
-        if (source === 'megaplay') {
-          return `https://animeplay.cfd/stream/ani/${id}/${ep}/${audio}`;
-        }
-        return `https://animeplay.cfd/stream/ani/${id}/${ep}/${audio}`;
-      }
-
       function buildSourceSelectOptions() {
         return PLAYER_SOURCES.map((name) => {
           const label = getPlayerSourceLabel(name);
@@ -7760,7 +7729,7 @@
         syncPlayerPrefButtons();
       }
 
-      function loadPlayer(epNum, epTitle, idx, total) {
+      async function loadPlayer(epNum, epTitle, idx, total) {
         if (!curAnime) return;
         const storageId = curAnime.id;
         curEp = epNum;
@@ -7774,10 +7743,33 @@
         if (watchMetaEl) watchMetaEl.textContent = `Episode ${idx} of ${total} · ${curDS.toUpperCase()}`;
 
         const mode = curDS === 'dub' ? 'dub' : 'sub';
-        const url = buildPlayerEmbedUrl(storageId, epNum, mode, curSource);
+        let url = CatimeMegaplay.buildStreamUrl(null, storageId, epNum, mode);
 
         if (playerBoxEl) {
-          playerBoxEl.innerHTML = `<iframe src="${url}" frameborder="0" scrolling="no" allowfullscreen allow="autoplay; fullscreen; encrypted-media" style="width:100%;height:100%;border:none" title="${sanitizeHTML(epTitle)}"></iframe>`;
+          playerBoxEl.innerHTML = `<div class="player-ph"><div style="font-size:0.82rem;color:var(--text3)">Finding stream…</div></div>`;
+        }
+
+        if (normalizePlayerSource(curSource) === 'megaplay' && window.CatimeMegaplay) {
+          try {
+            url = await CatimeMegaplay.resolveStreamUrl(
+              storageId,
+              epNum,
+              mode,
+              curAnime.malId || curAnime.idMal
+            );
+          } catch (e) {
+            console.warn('MegaPlay resolve failed:', e);
+            if (e?.code === 'OPEN_VIA_HTTP' || location.protocol === 'file:') {
+              toast('Open via npm start — do not double-click index.html (file:// blocks streams)');
+            } else {
+              toast('Could not find stream — try npm start locally or refresh');
+            }
+          }
+        }
+
+        if (playerBoxEl) {
+          const safeUrl = String(url).replace(/"/g, '&quot;');
+          playerBoxEl.innerHTML = `<iframe src="${safeUrl}" width="100%" height="100%" frameborder="0" scrolling="no" allowfullscreen style="width:100%;height:100%;border:none" title="${sanitizeHTML(epTitle)}"></iframe>`;
         }
         CatimeFeatures.onPlayerLoad();
         CatimeStorage.updateContinueWatching(storageId, epNum);
@@ -8720,6 +8712,9 @@
         homeFeedBootstrapped = true;
         loadCW();
         scheduleIdleTask(() => loadRecommendations(), 4000);
+        scheduleIdleTask(() => {
+          if (window.CatimeMegaplay) CatimeMegaplay.startBackgroundIndex(localStorage, scheduleIdleTask);
+        }, 6000);
         CatimeFeatures.loadAiringThisWeek();
         CatimeFeatures.loadSeasonalHub();
         loadTrending();

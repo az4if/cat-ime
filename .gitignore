@@ -2,9 +2,10 @@
 .DS_Store
 Thumbs.db
 
-# IDE files
+# IDE / local agent config
 .vscode/
 .idea/
+.cursor/
 
 # Node modules (if you ever add them)
 node_modules/

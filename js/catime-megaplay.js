@@ -9,14 +9,61 @@
   const MAP_KEY = 'anikoto_catalog_map_v1';
   const URL_CACHE_PREFIX = 'megaplay_url_';
 
-  /** Anikoto has no Access-Control-Allow-Origin; use same-origin /api/anikoto proxy (npm start). */
-  function getAnikotoApiBase() {
-    if (typeof location === 'undefined') return ANIKOTO_DIRECT;
-    if (location.protocol === 'file:') return null;
-    if (location.protocol === 'http:' || location.protocol === 'https:') {
-      return `${location.origin}/api/anikoto`;
+  function getSupabaseConfig() {
+    return global.supabaseConfig || global.window?.supabaseConfig || null;
+  }
+
+  /** Anikoto has no CORS — use local /api/anikoto (npm start) or Supabase edge proxy on live site. */
+  function getAnikotoTransport() {
+    if (typeof location === 'undefined') {
+      return { mode: 'direct', base: ANIKOTO_DIRECT };
     }
-    return ANIKOTO_DIRECT;
+    if (location.protocol === 'file:') {
+      return { mode: 'none' };
+    }
+    const host = location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return { mode: 'local', base: `${location.origin}/api/anikoto` };
+    }
+    const cfg = getSupabaseConfig();
+    if (cfg?.url && cfg?.anonKey) {
+      return {
+        mode: 'supabase',
+        base: `${cfg.url.replace(/\/$/, '')}/functions/v1/anikoto-proxy`,
+        anonKey: cfg.anonKey,
+      };
+    }
+    return { mode: 'none' };
+  }
+
+  function getAnikotoApiBase() {
+    const t = getAnikotoTransport();
+    if (t.mode === 'local') return t.base;
+    if (t.mode === 'supabase') return t.base;
+    if (t.mode === 'direct') return t.base;
+    return null;
+  }
+
+  async function anikotoFetch(pathWithQuery) {
+    const transport = getAnikotoTransport();
+    if (transport.mode === 'none') {
+      const err = new Error('OPEN_VIA_HTTP');
+      err.code = 'OPEN_VIA_HTTP';
+      throw err;
+    }
+    if (transport.mode === 'local') {
+      return fetch(`${transport.base}${pathWithQuery}`);
+    }
+    if (transport.mode === 'supabase') {
+      const url = `${transport.base}?path=${encodeURIComponent(pathWithQuery)}`;
+      return fetch(url, {
+        headers: {
+          Authorization: `Bearer ${transport.anonKey}`,
+          apikey: transport.anonKey,
+        },
+      });
+    }
+    return fetch(`${ANIKOTO_DIRECT}${pathWithQuery}`);
   }
 
   function readJson(storage, key, fallback) {
@@ -68,14 +115,7 @@
   }
 
   async function fetchAnikotoRecent(page, perPage) {
-    const base = getAnikotoApiBase();
-    if (!base) {
-      const err = new Error('OPEN_VIA_HTTP');
-      err.code = 'OPEN_VIA_HTTP';
-      throw err;
-    }
-    const url = `${base}/recent-anime?page=${page}&per_page=${perPage}`;
-    const res = await fetch(url);
+    const res = await anikotoFetch(`/recent-anime?page=${page}&per_page=${perPage}`);
     if (!res.ok) throw new Error(`Anikoto HTTP ${res.status}`);
     const json = await res.json();
     if (!json.ok) throw new Error(json.error || 'Anikoto error');
@@ -106,9 +146,12 @@
   }
 
   async function fetchEpisodeEmbedId(catalogId, epNum) {
-    const base = getAnikotoApiBase();
-    if (!base) return null;
-    const res = await fetch(`${base}/series/${catalogId}`);
+    let res;
+    try {
+      res = await anikotoFetch(`/series/${catalogId}`);
+    } catch {
+      return null;
+    }
     if (!res.ok) return null;
     const json = await res.json();
     if (!json.ok || !json.data?.episodes) return null;
@@ -177,6 +220,8 @@
   global.CatimeMegaplay = {
     MEGAPLAY_ORIGIN,
     getAnikotoApiBase,
+    getAnikotoTransport,
+    anikotoFetch,
     resolveStreamUrl,
     buildStreamUrl,
     findAnikotoCatalogId,

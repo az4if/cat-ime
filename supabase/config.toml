@@ -1,0 +1,5 @@
+# Supabase local/dev config fragment for edge functions.
+# See https://supabase.com/docs/guides/functions
+
+[functions.anikoto-proxy]
+verify_jwt = false

@@ -26,6 +26,17 @@ describe('CatimeStorage', () => {
     assert.equal(S.getMyListIds().length, 0);
   });
 
+  it('getMyListStatus only when on my list', () => {
+    const { ctx, storage: ls } = createBrowserContext();
+    ls.setItem('stat_7', 'sc');
+    loadScripts(ctx, ['js/catime-storage.js']);
+    const S = ctx.CatimeStorage;
+    assert.equal(S.getMyListStatus(7), null);
+    S.toggleMyListId(7);
+    assert.equal(S.getMyListStatus(7), 'sc');
+    assert.equal(S.getMyListStatus(99), null);
+  });
+
   it('my list and episode follows are independent', () => {
     const S = storage();
     S.toggleMyListId(10);

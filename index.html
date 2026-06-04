@@ -2233,7 +2233,29 @@
   .cw-ep {
     font-size: 0.72rem;
     color: var(--text2);
-    margin-bottom: 0.45rem
+    margin-bottom: 0.25rem
+  }
+
+  .cw-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3rem 0.45rem;
+    margin-bottom: 0.4rem
+  }
+
+  .cw-ts {
+    font-size: 0.65rem;
+    color: var(--text3)
+  }
+
+  .cw-stat {
+    font-size: 0.58rem;
+    padding: 0.12rem 0.38rem;
+    border-radius: 4px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em
   }
 
   .pr {
@@ -6133,7 +6155,7 @@
 
 <footer class="footer">
   <span class="footer-suggest">Have suggestions? Email <a href="mailto:thecatime@gmail.com">thecatime@gmail.com</a></span>
-  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v4.18</footer>
+  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v4.19</footer>
   <!-- Ya i added a cat emoticon in the footer deal with it :P -->
 
     <script>
@@ -7893,6 +7915,32 @@
 
       let recLoadGen = 0;
 
+      function formatLastWatched(ts) {
+        if (!ts) return '';
+        const diff = Date.now() - Number(ts);
+        if (!Number.isFinite(diff) || diff < 0) return '';
+        const sec = Math.floor(diff / 1000);
+        if (sec < 60) return 'Last watched just now';
+        const min = Math.floor(sec / 60);
+        if (min < 60) return min === 1 ? 'Last watched 1 min ago' : `Last watched ${min} mins ago`;
+        const hr = Math.floor(min / 60);
+        if (hr < 24) return hr === 1 ? 'Last watched 1 hr ago' : `Last watched ${hr} hrs ago`;
+        const day = Math.floor(hr / 24);
+        if (day === 1) return 'Last watched yesterday';
+        if (day < 7) return `Last watched ${day} days ago`;
+        const weeks = Math.floor(day / 7);
+        if (weeks < 5) return weeks === 1 ? 'Last watched 1 week ago' : `Last watched ${weeks} weeks ago`;
+        return 'Last watched a while ago';
+      }
+
+      function cwListStatusBadge(animeId) {
+        const statusKey = CatimeStorage.getMyListStatus(animeId);
+        if (!statusKey) return '';
+        const entry = statuses.find((s) => s.cls === statusKey);
+        if (!entry) return '';
+        return `<span class="cw-stat ${statusKey}">${sanitizeHTML(entry.label)}</span>`;
+      }
+
       function refreshCwAndRecommendations() {
         loadCW();
         scheduleIdleTask(() => loadRecommendations(), 4000);
@@ -7932,6 +7980,12 @@
             const total = m.episodes ?? m.nextAiringEpisode?.episode ?? Math.max(item.ep, 1);
             const pct = Math.min(100, (item.ep / total) * 100);
             const obj = { id: m.id, malId: m.idMal, title: rawTitle, eps: m.episodes ?? m.nextAiringEpisode?.episode ?? null, img: m.coverImage.large, dubbed: true, score: m.averageScore ? (m.averageScore / 10).toFixed(1) : '?' };
+            const lastWatched = formatLastWatched(item.ts);
+            const statusBadge = cwListStatusBadge(item.id);
+            const cwMeta =
+              lastWatched || statusBadge
+                ? `<div class="cw-meta">${statusBadge}${lastWatched ? `<span class="cw-ts">${sanitizeHTML(lastWatched)}</span>` : ''}</div>`
+                : '';
 
             scroll.innerHTML += `<div class="cw-card" onclick='resumeAnime(${JSON.stringify(obj).replace(/</g, '\\u003c').replace(/>/g, '\\u003e')}, ${item.ep})'>
              <div class="cw-thumb">
@@ -7942,6 +7996,7 @@
              </div>
              <div class="cw-info">
                <div class="cw-title">${t}</div><div class="cw-ep">Episode ${item.ep}</div>
+               ${cwMeta}
                <div class="pr"><div class="pb"><div class="pf" style="width:${pct}%"></div></div><div class="pt">${item.ep}/${total}</div></div>
              </div>
            </div>`;

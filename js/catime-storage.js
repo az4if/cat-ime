@@ -76,6 +76,13 @@
     return n ? getMyListIds().includes(n) : false;
   }
 
+  /** My List status code only when the id is on My List; otherwise null. */
+  function getMyListStatus(id) {
+    const n = normalizeAnimeId(id);
+    if (!n || !isOnMyList(n)) return null;
+    return localStorage.getItem('stat_' + n) || 'sw';
+  }
+
   function toggleMyListId(id) {
     const n = normalizeAnimeId(id);
     if (!n) return { onList: false, added: false };
@@ -216,6 +223,7 @@
     getMyListIds,
     setMyListIds,
     isOnMyList,
+    getMyListStatus,
     toggleMyListId,
     removeFromMyList,
     getEpisodeFollowIds,

@@ -2778,6 +2778,20 @@
     opacity: 0.4
   }
 
+  .epi.upcoming {
+    opacity: 0.42;
+    cursor: default;
+    pointer-events: none;
+    border-style: dashed;
+    border-color: var(--border);
+    background: var(--bg2)
+  }
+
+  .epi.upcoming .en,
+  .epi.upcoming .enm {
+    color: var(--text3)
+  }
+
   .en {
     font-family: 'Syne', sans-serif;
     font-size: 0.7rem;
@@ -6155,7 +6169,7 @@
 
 <footer class="footer">
   <span class="footer-suggest">Have suggestions? Email <a href="mailto:thecatime@gmail.com">thecatime@gmail.com</a></span>
-  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v4.19</footer>
+  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v4.20</footer>
   <!-- Ya i added a cat emoticon in the footer deal with it :P -->
 
     <script>
@@ -7006,15 +7020,40 @@
         watchAnime(randomAnime);
       }
 
-      async function resolveEpisodeCount(animeId, malId, fallback = 12) {
-        const q = `query($id: Int) { Media(id: $id) { episodes nextAiringEpisode { episode } } }`;
+      async function resolveWatchEpisodeMeta(animeId, malId, fallback = 12) {
+        const meta = {
+          airedMax: fallback,
+          nextUpcoming: null,
+          displayTotal: fallback,
+          status: null,
+        };
+
+        const q = `query($id: Int) { Media(id: $id) { episodes status nextAiringEpisode { episode } } }`;
         try {
           const data = await CatimeApi.fetchGraphQL(q, { id: animeId });
           const m = data?.data?.Media;
-          if (m?.episodes) return m.episodes;
-          if (m?.nextAiringEpisode?.episode > 0) return m.nextAiringEpisode.episode;
+          if (m) {
+            meta.status = m.status;
+            if (m.episodes != null && m.episodes > 0) {
+              meta.displayTotal = m.episodes;
+              if (m.status === 'RELEASING' && m.nextAiringEpisode?.episode > 0) {
+                meta.airedMax = Math.max(0, m.nextAiringEpisode.episode - 1);
+                meta.nextUpcoming = m.nextAiringEpisode.episode;
+              } else {
+                meta.airedMax = m.episodes;
+              }
+              return meta;
+            }
+            if (m.nextAiringEpisode?.episode > 0) {
+              const next = m.nextAiringEpisode.episode;
+              meta.nextUpcoming = next;
+              meta.airedMax = Math.max(0, next - 1);
+              meta.displayTotal = next;
+              return meta;
+            }
+          }
         } catch (e) {
-          console.warn('AniList episode count lookup failed:', e);
+          console.warn('AniList episode meta lookup failed:', e);
         }
 
         if (malId) {
@@ -7022,14 +7061,32 @@
             const res = await fetch(`https://api.jikan.moe/v4/anime/${malId}`);
             if (res.ok) {
               const d = await res.json();
-              if (d?.data?.episodes) return d.data.episodes;
+              const eps = d?.data?.episodes;
+              if (eps != null && eps > 0) {
+                meta.displayTotal = eps;
+                meta.airedMax = eps;
+                return meta;
+              }
             }
           } catch (e) {
             console.warn('Jikan episode count lookup failed:', e);
           }
         }
 
-        return fallback;
+        return meta;
+      }
+
+      function applyWatchEpisodeMeta(a, meta) {
+        a.airedMax = Math.max(0, meta.airedMax || 0);
+        a.nextUpcoming = meta.nextUpcoming || null;
+        a.displayTotal = meta.displayTotal || a.airedMax;
+        a.eps = a.displayTotal;
+        a.mediaStatus = meta.status || null;
+      }
+
+      async function resolveEpisodeCount(animeId, malId, fallback = 12) {
+        const meta = await resolveWatchEpisodeMeta(animeId, malId, fallback);
+        return meta.airedMax || fallback;
       }
 
       function watchAnime(a, opts = {}) {
@@ -7051,8 +7108,14 @@
         document.getElementById('watchMeta').textContent = 'Loading episodes...';
         clearCountdown();
         buildEpList(a, initialEps, []);
+        window._episodeStreamAvail = null;
         if (window.CatimeMegaplay?.prefetchForAnime) {
-          CatimeMegaplay.prefetchForAnime(a.id, a.malId || a.idMal);
+          CatimeMegaplay.prefetchForAnime(a.id, a.malId || a.idMal).then(() => {
+            if (!curAnime || curAnime.id !== a.id || !window.CatimeMegaplay?.getSeriesEpisodesMap) return;
+            return CatimeMegaplay.getSeriesEpisodesMap(a.id, a.malId || a.idMal);
+          }).then((episodes) => {
+            if (episodes) applyStreamAvailabilityFromSeries(episodes);
+          }).catch(() => {});
         }
         loadPlayer(startEp, `Episode ${startEp}`, startEp, initialEps);
         CatimeFeatures.syncWatchActionButtons(a);
@@ -7069,22 +7132,64 @@
         }, 2500);
 
         void (async () => {
-          const epCount = await resolveEpisodeCount(a.id, a.malId || a.idMal, initialEps);
+          const meta = await resolveWatchEpisodeMeta(a.id, a.malId || a.idMal, initialEps);
           if (!curAnime || curAnime.id !== a.id) return;
-          curAnime.eps = epCount;
-          buildEpList(curAnime, epCount, window._lastEpTitles || []);
-          const watchMetaEl = document.getElementById('watchMeta');
-          if (watchMetaEl && curEp) {
-            watchMetaEl.textContent = `Episode ${curEp} of ${epCount} · ${curDS.toUpperCase()}`;
-          }
+          applyWatchEpisodeMeta(curAnime, meta);
+          const airedMax = curAnime.airedMax || 1;
+          if (curEp > airedMax) curEp = airedMax;
+          buildEpList(curAnime, airedMax, window._lastEpTitles || []);
+          syncWatchMetaLine();
           scheduleIdleTask(() => {
             if (!curAnime || curAnime.id !== a.id) return;
-            fetchEpisodeTitles(a.id, curAnime, epCount);
-          }, 4000);
+            fetchEpisodeTitles(a.id, curAnime, airedMax);
+          }, 600);
         })();
       }
 
       let fetchEpisodeTitlesSeq = 0;
+      const JIKAN_EPISODES_PER_PAGE = 100;
+
+      function buildEpTitlesArray(epCount, titlesByEp) {
+        const epNums = Object.keys(titlesByEp).map(Number);
+        const maxFetched = epNums.length ? Math.max(...epNums) : 0;
+        const totalEps = Math.max(epCount, maxFetched);
+        const epTitles = [];
+        for (let i = 1; i <= totalEps; i++) {
+          epTitles.push(titlesByEp[i] || null);
+        }
+        return { epTitles, totalEps };
+      }
+
+      function commitEpisodeTitles(id, a, epCount, titlesByEp, seq) {
+        if (seq !== fetchEpisodeTitlesSeq || !curAnime || curAnime.id !== id) return false;
+        if (!Object.keys(titlesByEp).length) return false;
+        const airedMax = getAiredEpisodeMax(a);
+        const { epTitles } = buildEpTitlesArray(Math.max(epCount, airedMax), titlesByEp);
+        buildEpList(a, airedMax || epCount, epTitles);
+        return true;
+      }
+
+      async function fetchJikanEpisodePage(malId, page) {
+        for (let attempt = 0; attempt < 5; attempt++) {
+          const res = await fetch(`https://api.jikan.moe/v4/anime/${malId}/episodes?page=${page}`);
+          if (res.status === 429) {
+            await new Promise((r) => setTimeout(r, 1100 * (attempt + 1)));
+            continue;
+          }
+          if (!res.ok) return null;
+          return res.json();
+        }
+        return null;
+      }
+
+      function ingestJikanEpisodePage(titlesByEp, page, data) {
+        if (!Array.isArray(data)) return;
+        const base = (page - 1) * JIKAN_EPISODES_PER_PAGE;
+        data.forEach((ep, idx) => {
+          const epNum = ep.mal_id > 0 ? ep.mal_id : base + idx + 1;
+          titlesByEp[epNum] = ep;
+        });
+      }
 
       async function fetchEpisodeTitles(id, a, epCount) {
         const malId = a.malId || a.idMal;
@@ -7092,45 +7197,28 @@
         const seq = ++fetchEpisodeTitlesSeq;
         try {
           const titlesByEp = {};
-          let page = 1;
-          let hasNext = true;
+          const priorityPage = Math.max(1, Math.ceil((curEp || 1) / JIKAN_EPISODES_PER_PAGE));
 
-          const maxPages = Math.min(60, Math.max(3, Math.ceil((epCount || 12) / 25) + 1));
-          while (hasNext && page <= maxPages) {
-            let d = null;
-            for (let attempt = 0; attempt < 4; attempt++) {
-              const res = await fetch(`https://api.jikan.moe/v4/anime/${malId}/episodes?page=${page}`);
-              if (res.status === 429) {
-                await new Promise(r => setTimeout(r, 900 * (attempt + 1)));
-                continue;
-              }
-              d = await res.json();
-              break;
-            }
-            if (!d?.data?.length) break;
+          const first = await fetchJikanEpisodePage(malId, priorityPage);
+          if (!first?.data?.length) return;
+          ingestJikanEpisodePage(titlesByEp, priorityPage, first.data);
+          commitEpisodeTitles(id, a, epCount, titlesByEp, seq);
 
-            for (const ep of d.data) {
-              if (ep.mal_id > 0) titlesByEp[ep.mal_id] = ep;
-            }
-            hasNext = Boolean(d.pagination?.has_next_page);
-            page++;
-            if (hasNext) await new Promise(r => setTimeout(r, 400));
+          const lastVisiblePage = first.pagination?.last_visible_page || priorityPage;
+          const pages = [];
+          for (let p = 1; p <= lastVisiblePage; p++) {
+            if (p !== priorityPage) pages.push(p);
           }
 
-          if (!Object.keys(titlesByEp).length) return;
-
-          const epNums = Object.keys(titlesByEp).map(Number);
-          const maxFetched = epNums.length ? Math.max(...epNums) : 0;
-          const totalEps = Math.max(epCount, maxFetched);
-
-          const epTitles = [];
-          for (let i = 1; i <= totalEps; i++) {
-            epTitles.push(titlesByEp[i] || null);
+          for (let i = 0; i < pages.length; i++) {
+            if (seq !== fetchEpisodeTitlesSeq || !curAnime || curAnime.id !== id) return;
+            const p = pages[i];
+            const d = await fetchJikanEpisodePage(malId, p);
+            if (d?.data?.length) ingestJikanEpisodePage(titlesByEp, p, d.data);
+            if (i < pages.length - 1) await new Promise((r) => setTimeout(r, 450));
           }
 
-          if (seq !== fetchEpisodeTitlesSeq || !curAnime || curAnime.id !== id) return;
-          curAnime.eps = totalEps;
-          buildEpList(a, totalEps, epTitles);
+          commitEpisodeTitles(id, a, epCount, titlesByEp, seq);
         } catch (e) {
           console.warn('Episode titles fetch failed:', e);
         }
@@ -7558,18 +7646,59 @@
         scrollEpListToEpisode(start);
       }
 
+      function getAiredEpisodeMax(a) {
+        if (!a) return 1;
+        if (a.airedMax != null) return Math.max(0, a.airedMax);
+        return Math.max(1, a.eps ?? 1);
+      }
+
+      function applyStreamAvailabilityFromSeries(episodes) {
+        if (!episodes || typeof episodes !== 'object') return;
+        const avail = {};
+        for (const [n, ep] of Object.entries(episodes)) {
+          avail[n] = {
+            sub: ep.hasSub !== undefined ? ep.hasSub : Boolean(ep.sub),
+            dub: ep.hasDub !== undefined ? ep.hasDub : Boolean(ep.dub),
+          };
+        }
+        window._episodeStreamAvail = avail;
+        syncDSButtons();
+      }
+
+      function getEpisodeStreamAvailability(epNum) {
+        const hit = window._episodeStreamAvail?.[String(epNum)];
+        if (hit) return hit;
+        return { sub: true, dub: true };
+      }
+
+      function syncWatchMetaLine() {
+        const watchMetaEl = document.getElementById('watchMeta');
+        if (!watchMetaEl || !curAnime || !curEp) return;
+        const aired = getAiredEpisodeMax(curAnime);
+        const total = curAnime.displayTotal || curAnime.eps || aired;
+        const upcoming = curAnime.nextUpcoming;
+        const totalStr = upcoming ? `${aired} aired` : `${total}`;
+        watchMetaEl.textContent = `Episode ${curEp} of ${totalStr} · ${curDS.toUpperCase()}`;
+      }
+
       function buildEpList(a, epCount, epTitles = []) {
         window._lastEpTitles = epTitles;
         const list = document.getElementById('epList');
         if (!list) return;
         list.innerHTML = '';
-        const total = epCount;
+        const airedMax = getAiredEpisodeMax(a);
+        const nextUpcoming = a.nextUpcoming && a.nextUpcoming > airedMax ? a.nextUpcoming : null;
+        const listEnd = nextUpcoming ? nextUpcoming : airedMax;
         const epCntEl = document.getElementById('epCnt');
-        if (epCntEl) epCntEl.textContent = total + ' eps';
+        if (epCntEl) {
+          epCntEl.textContent = nextUpcoming
+            ? `${airedMax} aired · ep ${nextUpcoming} soon`
+            : `${airedMax} eps`;
+        }
         const watched = new Set(JSON.parse(localStorage.getItem('w_' + a.id) || '[]'));
-        const padLen = Math.max(2, String(total).length);
+        const padLen = Math.max(2, String(listEnd).length);
 
-        for (let i = 1; i <= total; i++) {
+        for (let i = 1; i <= airedMax; i++) {
           const item = document.createElement('div');
           item.className = 'epi' + (watched.has(i) ? ' done' : '') + (i === curEp ? ' cur' : '');
           item.dataset.ep = String(i);
@@ -7582,18 +7711,27 @@
           const epN = i;
           item.innerHTML = `<div class="en">${String(i).padStart(padLen, '0')}</div><div class="ei"><div class="enm" title="${epLabel}">${epLabel}</div></div>${watched.has(i) ? '<div class="etick" aria-label="Watched"></div>' : ''}`;
           item.onclick = () => {
-            document.querySelectorAll('.epi').forEach(e => e.classList.remove('cur'));
+            document.querySelectorAll('.epi').forEach((e) => e.classList.remove('cur'));
             item.classList.add('cur');
-            loadPlayer(epN, epLabelRaw, epN, total);
+            loadPlayer(epN, epLabelRaw, epN, airedMax);
           };
           list.appendChild(item);
         }
 
-        syncEpSectionJump(total);
+        if (nextUpcoming) {
+          const item = document.createElement('div');
+          item.className = 'epi upcoming';
+          item.dataset.ep = String(nextUpcoming);
+          const upLabel = sanitizeHTML(`Episode ${nextUpcoming} · Coming soon`);
+          item.innerHTML = `<div class="en">${String(nextUpcoming).padStart(padLen, '0')}</div><div class="ei"><div class="enm" title="${upLabel}">${upLabel}</div></div>`;
+          list.appendChild(item);
+        }
+
+        syncEpSectionJump(listEnd);
 
         const curItem = getEpListItem(curEp);
         if (curItem) {
-          document.querySelectorAll('.epi').forEach(e => e.classList.remove('cur'));
+          document.querySelectorAll('.epi').forEach((e) => e.classList.remove('cur'));
           curItem.classList.add('cur');
           scrollEpListToEpisode(curEp);
         }
@@ -7601,8 +7739,8 @@
 
       function goNextEpisode() {
         if (!curAnime) return;
-        const total = curAnime.eps || 1;
-        if (curEp >= total) {
+        const airedMax = getAiredEpisodeMax(curAnime);
+        if (curEp >= airedMax) {
           if (CatimeFeatures.playNextInQueue()) return;
           toast('No next episode');
           return;
@@ -7773,6 +7911,12 @@
 
       async function loadPlayer(epNum, epTitle, idx, total) {
         if (!curAnime) return;
+        const airedMax = getAiredEpisodeMax(curAnime);
+        if (epNum > airedMax) {
+          const playerBoxEl = document.getElementById('playerBox');
+          showPlayerUnavailable(playerBoxEl, 'This episode has not aired yet.');
+          return;
+        }
         const loadGen = ++playerLoadGen;
         const storageId = curAnime.id;
         curEp = epNum;
@@ -7783,8 +7927,8 @@
 
         if (watchTitleEl) watchTitleEl.textContent = curAnime.title;
 
-        if (watchMetaEl) watchMetaEl.textContent = `Episode ${idx} of ${total} · ${curDS.toUpperCase()}`;
-
+        syncWatchMetaLine();
+        syncDSButtons();
         const mode = curDS === 'dub' ? 'dub' : 'sub';
         let url = null;
 
@@ -7907,10 +8051,35 @@
       }
 
       function syncDSButtons() {
-        document.getElementById('dsSub')?.classList.toggle('on', curDS === 'sub');
-        document.getElementById('dsDub')?.classList.toggle('on', curDS === 'dub');
-        document.getElementById('spDsSub')?.classList.toggle('on', curDS === 'sub');
-        document.getElementById('spDsDub')?.classList.toggle('on', curDS === 'dub');
+        const av = getEpisodeStreamAvailability(curEp);
+        const subBtn = document.getElementById('dsSub');
+        const dubBtn = document.getElementById('dsDub');
+        const spSub = document.getElementById('spDsSub');
+        const spDub = document.getElementById('spDsDub');
+
+        [subBtn, spSub].forEach((btn) => {
+          if (!btn) return;
+          btn.classList.toggle('on', curDS === 'sub');
+          btn.classList.toggle('disabled', !av.sub);
+          btn.disabled = !av.sub;
+        });
+        [dubBtn, spDub].forEach((btn) => {
+          if (!btn) return;
+          btn.classList.toggle('on', curDS === 'dub');
+          btn.classList.toggle('disabled', !av.dub);
+          btn.disabled = !av.dub;
+        });
+
+        if (curDS === 'dub' && !av.dub && av.sub) {
+          curDS = 'sub';
+          localStorage.setItem('pref_ds', 'sub');
+        } else if (curDS === 'sub' && !av.sub && av.dub) {
+          curDS = 'dub';
+          localStorage.setItem('pref_ds', 'dub');
+        }
+
+        [subBtn, spSub].forEach((btn) => btn?.classList.toggle('on', curDS === 'sub'));
+        [dubBtn, spDub].forEach((btn) => btn?.classList.toggle('on', curDS === 'dub'));
       }
 
       let recLoadGen = 0;
@@ -8102,10 +8271,20 @@
       }
 
       function setDS(t) {
+        const av = getEpisodeStreamAvailability(curEp);
+        if (t === 'dub' && !av.dub) {
+          toast('DUB is not available for this episode');
+          return;
+        }
+        if (t === 'sub' && !av.sub) {
+          toast('SUB is not available for this episode');
+          return;
+        }
         curDS = t;
         localStorage.setItem('pref_ds', t);
         syncDSButtons();
-        if (curAnime) loadPlayer(curEp, 'Episode ' + curEp, curEp, curAnime.eps);
+        syncWatchMetaLine();
+        if (curAnime) loadPlayer(curEp, 'Episode ' + curEp, curEp, getAiredEpisodeMax(curAnime));
       }
 
       function setSrc(s) {

@@ -216,6 +216,8 @@
         embedId: row.episode_embed_id || null,
         sub: row.embed_url?.sub || null,
         dub: row.embed_url?.dub || null,
+        hasSub: Boolean(row.embed_url?.sub),
+        hasDub: Boolean(row.embed_url?.dub),
       };
     }
     writeJson(storage, key, { episodes });
@@ -250,6 +252,15 @@
 
   function prefetchForAnime(anilistId, malId) {
     return ensureCatalogReady(anilistId, malId);
+  }
+
+  async function getSeriesEpisodesMap(anilistId, malId) {
+    const storage = global.localStorage;
+    await ensureCatalogReady(anilistId, malId);
+    const map = loadCatalogMap(storage);
+    const catalogId = catalogIdFromMap(map, anilistId, malId);
+    if (!catalogId) return null;
+    return fetchAndCacheSeries(storage, catalogId);
   }
 
   async function fetchEpisodeEmbedId(catalogId, epNum) {
@@ -332,6 +343,7 @@
     isUnplayableStreamUrl,
     findAnikotoCatalogId,
     prefetchForAnime,
+    getSeriesEpisodesMap,
     fetchAndCacheSeries,
     urlFromSeriesEpisode,
     purgeStaleUrlCache,

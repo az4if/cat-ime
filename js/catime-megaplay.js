@@ -7,7 +7,12 @@
   const MEGAPLAY_ORIGIN = 'https://megaplay.buzz';
   const ANIKOTO_DIRECT = 'https://anikotoapi.site';
   const MAP_KEY = 'anikoto_catalog_map_v1';
-  const URL_CACHE_PREFIX = 'megaplay_url_';
+  const SERIES_CACHE_PREFIX = 'anikoto_series_v1_';
+  const URL_CACHE_PREFIX = 'megaplay_url_v2_';
+  const PARALLEL_PAGES = 5;
+
+  /** @type {Map<string, Promise<number|null>>} */
+  const catalogReady = new Map();
 
   function getSupabaseConfig() {
     return global.supabaseConfig || global.window?.supabaseConfig || null;
@@ -85,7 +90,7 @@
     try {
       storage.setItem(key, JSON.stringify(value));
     } catch (e) {
-      console.warn('Anikoto map save failed:', e);
+      console.warn('Anikoto cache save failed:', e);
     }
   }
 
@@ -129,29 +134,71 @@
   }
 
   async function findAnikotoCatalogId(storage, anilistId, malId, options) {
-    const maxSearchPages = options?.maxSearchPages ?? 80;
+    const maxSearchPages = options?.maxSearchPages ?? 60;
+    const parallelPages = options?.parallelPages ?? PARALLEL_PAGES;
     let map = loadCatalogMap(storage);
     let hit = catalogIdFromMap(map, anilistId, malId);
     if (hit) return hit;
 
-    for (let page = 1; page <= maxSearchPages; page++) {
-      try {
-        const json = await fetchAnikotoRecent(page, 50);
-        ingestRecentPage(map, json.data);
-        saveCatalogMap(storage, map);
-        hit = catalogIdFromMap(map, anilistId, malId);
-        if (hit) return hit;
-        const totalPages = json.pagination?.total_pages || page;
-        if (page >= totalPages) break;
-      } catch (e) {
-        console.warn('Anikoto catalog search failed:', e);
-        break;
+    let totalPages = maxSearchPages;
+    for (let start = 1; start <= maxSearchPages; start += parallelPages) {
+      const end = Math.min(start + parallelPages - 1, maxSearchPages);
+      const pageNums = [];
+      for (let p = start; p <= end; p++) pageNums.push(p);
+
+      const results = await Promise.allSettled(
+        pageNums.map((p) => fetchAnikotoRecent(p, 50))
+      );
+
+      for (const r of results) {
+        if (r.status !== 'fulfilled') continue;
+        ingestRecentPage(map, r.value.data);
+        totalPages = r.value.pagination?.total_pages ?? totalPages;
       }
+      saveCatalogMap(storage, map);
+      hit = catalogIdFromMap(map, anilistId, malId);
+      if (hit) return hit;
+      if (start >= totalPages) break;
     }
     return null;
   }
 
-  async function fetchEpisodeEmbedId(catalogId, epNum) {
+  function isUnplayableStreamUrl(url) {
+    return typeof url !== 'string' || !url || url.includes('/stream/ani/');
+  }
+
+  function urlFromSeriesEpisode(ep, audio) {
+    if (!ep) return null;
+    const primary = audio === 'dub' ? ep.dub : ep.sub;
+    const alternate = audio === 'dub' ? ep.sub : ep.dub;
+    if (primary) return primary;
+    if (alternate) return alternate;
+    if (ep.embedId) {
+      const track = ep.dub && !ep.sub ? 'dub' : ep.sub && !ep.dub ? 'sub' : audio;
+      return `${MEGAPLAY_ORIGIN}/stream/s-2/${ep.embedId}/${track}`;
+    }
+    return null;
+  }
+
+  function purgeStaleUrlCache(storage) {
+    if (!storage) return;
+    const keys = [];
+    for (let i = 0; i < storage.length; i++) {
+      const k = storage.key(i);
+      if (k && (k.startsWith(URL_CACHE_PREFIX) || k.startsWith('megaplay_url_'))) {
+        keys.push(k);
+      }
+    }
+    for (const k of keys) {
+      if (isUnplayableStreamUrl(storage.getItem(k))) storage.removeItem(k);
+    }
+  }
+
+  async function fetchAndCacheSeries(storage, catalogId) {
+    const key = SERIES_CACHE_PREFIX + catalogId;
+    const cached = readJson(storage, key, null);
+    if (cached?.episodes) return cached.episodes;
+
     let res;
     try {
       res = await anikotoFetch(`/series/${catalogId}`);
@@ -161,34 +208,86 @@
     if (!res.ok) return null;
     const json = await res.json();
     if (!json.ok || !json.data?.episodes) return null;
-    const ep = json.data.episodes.find((e) => Number(e.number) === Number(epNum));
-    return ep?.episode_embed_id || null;
+
+    const episodes = {};
+    for (const row of json.data.episodes) {
+      const n = String(row.number);
+      episodes[n] = {
+        embedId: row.episode_embed_id || null,
+        sub: row.embed_url?.sub || null,
+        dub: row.embed_url?.dub || null,
+      };
+    }
+    writeJson(storage, key, { episodes });
+    return episodes;
+  }
+
+  async function findAndWarmSeries(storage, anilistId, malId, options) {
+    const map = loadCatalogMap(storage);
+    let catalogId = catalogIdFromMap(map, anilistId, malId);
+    if (!catalogId) {
+      catalogId = await findAnikotoCatalogId(storage, anilistId, malId, options);
+    }
+    if (catalogId) await fetchAndCacheSeries(storage, catalogId);
+    return catalogId;
+  }
+
+  function catalogReadyKey(anilistId, malId) {
+    return `${anilistId}:${malId ?? ''}`;
+  }
+
+  function ensureCatalogReady(anilistId, malId, options) {
+    const key = catalogReadyKey(anilistId, malId);
+    if (!catalogReady.has(key)) {
+      const storage = global.localStorage;
+      const work = findAndWarmSeries(storage, anilistId, malId, options).finally(() => {
+        catalogReady.delete(key);
+      });
+      catalogReady.set(key, work);
+    }
+    return catalogReady.get(key);
+  }
+
+  function prefetchForAnime(anilistId, malId) {
+    return ensureCatalogReady(anilistId, malId);
+  }
+
+  async function fetchEpisodeEmbedId(catalogId, epNum) {
+    const storage = global.localStorage;
+    const episodes = await fetchAndCacheSeries(storage, catalogId);
+    if (!episodes) return null;
+    return episodes[String(epNum)]?.embedId || null;
   }
 
   function buildStreamUrl(embedId, anilistId, epNum, audio) {
     if (embedId) {
       return `${MEGAPLAY_ORIGIN}/stream/s-2/${embedId}/${audio}`;
     }
-    return `${MEGAPLAY_ORIGIN}/stream/ani/${anilistId}/${epNum}/${audio}`;
+    return null;
   }
 
   async function resolveStreamUrl(anilistId, epNum, audio, malId) {
     const storage = global.localStorage;
+    purgeStaleUrlCache(storage);
+
     const cacheKey = `${URL_CACHE_PREFIX}${anilistId}_${epNum}_${audio}`;
     const cached = storage.getItem(cacheKey);
-    if (cached) return cached;
+    if (cached && !isUnplayableStreamUrl(cached)) return cached;
 
-    const catalogId = await findAnikotoCatalogId(storage, anilistId, malId);
-    let embedId = null;
+    const catalogId = await ensureCatalogReady(anilistId, malId);
     if (catalogId) {
-      embedId = await fetchEpisodeEmbedId(catalogId, epNum);
+      const episodes = readJson(storage, SERIES_CACHE_PREFIX + catalogId, null)?.episodes
+        || (await fetchAndCacheSeries(storage, catalogId));
+      const url = urlFromSeriesEpisode(episodes?.[String(epNum)], audio);
+      if (url && !isUnplayableStreamUrl(url)) {
+        try {
+          storage.setItem(cacheKey, url);
+        } catch (_) { /* quota */ }
+        return url;
+      }
     }
 
-    const url = buildStreamUrl(embedId, anilistId, epNum, audio);
-    try {
-      storage.setItem(cacheKey, url);
-    } catch (_) { /* quota */ }
-    return url;
+    return null;
   }
 
   function startBackgroundIndex(storage, scheduleFn) {
@@ -230,7 +329,12 @@
     anikotoFetch,
     resolveStreamUrl,
     buildStreamUrl,
+    isUnplayableStreamUrl,
     findAnikotoCatalogId,
+    prefetchForAnime,
+    fetchAndCacheSeries,
+    urlFromSeriesEpisode,
+    purgeStaleUrlCache,
     startBackgroundIndex,
     isCompleteEvent,
   };

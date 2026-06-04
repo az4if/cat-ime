@@ -1,3 +1,21 @@
+<!-- Footer cat link — add URLs to this list (one opens at random when >⩊< is clicked) -->
+<script>
+  window.FOOTER_CAT_LINKS = [
+    'https://music.youtube.com/playlist?list=OLAK5uy_kFVmClAiIkCo4wgIzPTM-whD9zBpz_sC0',
+    'https://scp-wiki.wikidot.com/scp-5909',
+    'https://scp-wiki.wikidot.com/scp-426',
+    'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTgOvA6H-pDJ1n-k6CYzp3yjOux7v_1Zf-xYQ&s',
+  ];
+  window.openFooterCatLink = function (e) {
+    e.preventDefault();
+    const list = window.FOOTER_CAT_LINKS;
+    if (!list || !list.length) return false;
+    const url = list[Math.floor(Math.random() * list.length)];
+    window.open(url, '_blank', 'noopener,noreferrer');
+    return false;
+  };
+</script>
+
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3263,6 +3281,19 @@
     color: var(--text2);
   }
 
+  .footer-credit {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.15rem 0.35rem;
+  }
+
+  .footer-cat-link {
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+
   /* ── VISUAL ENHANCEMENTS ── */
 
   /* Smooth page enter animation */
@@ -6169,8 +6200,7 @@
 
 <footer class="footer">
   <span class="footer-suggest">Have suggestions? Email <a href="mailto:thecatime@gmail.com">thecatime@gmail.com</a></span>
-  Made by <a href="https://github.com/Thecosmiccat" target="_blank">Thecosmiccat>⩊<</a>  v4.20</footer>
-  <!-- Ya i added a cat emoticon in the footer deal with it :P -->
+  <span class="footer-credit">Made by <a href="https://github.com/Thecosmiccat" target="_blank" rel="noopener noreferrer">Thecosmiccat</a><a href="#" class="footer-cat-link" target="_blank" rel="noopener noreferrer" onclick="return openFooterCatLink(event)" aria-label="Random link">&gt;⩊&lt;</a> v4.21</span></footer>
 
     <script>
       // DB removed in favor of direct AniList Graph API calls
